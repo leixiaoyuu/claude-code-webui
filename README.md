@@ -104,7 +104,7 @@ npm install -g claude-code-webui
 # Start the server
 claude-code-webui
 
-# Open browser to http://localhost:8080
+# Open browser to http://localhost:22080
 ```
 
 ### Option 2: Binary Release
@@ -115,7 +115,7 @@ curl -LO https://github.com/sugyan/claude-code-webui/releases/latest/download/cl
 chmod +x claude-code-webui-macos-arm64
 ./claude-code-webui-macos-arm64
 
-# Open browser to http://localhost:8080
+# Open browser to http://localhost:22080
 ```
 
 ### Option 3: Development Mode
@@ -146,7 +146,7 @@ The backend server supports the following command-line options:
 
 | Option                 | Description                                               | Default     |
 | ---------------------- | --------------------------------------------------------- | ----------- |
-| `-p, --port <port>`    | Port to listen on                                         | 8080        |
+| `-p, --port <port>`    | Port to listen on                                         | 22080       |
 | `--host <host>`        | Host address to bind to (use 0.0.0.0 for all interfaces)  | 127.0.0.1   |
 | `--claude-path <path>` | Path to claude executable (overrides automatic detection) | Auto-detect |
 | `-d, --debug`          | Enable debug mode                                         | false       |
@@ -161,7 +161,7 @@ The backend server supports the following command-line options:
 ### Examples
 
 ```bash
-# Default (localhost:8080)
+# Default (localhost:22080)
 claude-code-webui
 
 # Custom port
@@ -293,10 +293,10 @@ PORT=9000 npm run dev       # Node.js
 
 ```bash
 # Local only (recommended)
-claude-code-webui --port 8080
+claude-code-webui --port 22080
 
 # Network access (trusted networks only)
-claude-code-webui --port 8080 --host 0.0.0.0
+claude-code-webui --port 22080 --host 0.0.0.0
 ```
 
 **Never expose to public internet without proper security measures.**
