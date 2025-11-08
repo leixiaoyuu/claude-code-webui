@@ -11,6 +11,9 @@ interface PermissionData {
   onAllow: () => void;
   onAllowPermanent: () => void;
   onDeny: () => void;
+  disableAllowPermanent?: boolean;
+  isProcessing?: boolean;
+  errorMessage?: string;
   getButtonClassName?: (
     buttonType: "allow" | "allowPermanent" | "deny",
     defaultClassName: string,
@@ -196,16 +199,19 @@ export function ChatInput({
   // If we're in regular permission mode, show the permission panel instead
   if (showPermissions && permissionData) {
     return (
-      <PermissionInputPanel
-        patterns={permissionData.patterns}
-        onAllow={permissionData.onAllow}
-        onAllowPermanent={permissionData.onAllowPermanent}
-        onDeny={permissionData.onDeny}
-        getButtonClassName={permissionData.getButtonClassName}
-        onSelectionChange={permissionData.onSelectionChange}
-        externalSelectedOption={permissionData.externalSelectedOption}
-      />
-    );
+        <PermissionInputPanel
+          patterns={permissionData.patterns}
+          onAllow={permissionData.onAllow}
+          onAllowPermanent={permissionData.onAllowPermanent}
+          onDeny={permissionData.onDeny}
+          disableAllowPermanent={permissionData.disableAllowPermanent}
+          isProcessing={permissionData.isProcessing}
+          errorMessage={permissionData.errorMessage}
+          getButtonClassName={permissionData.getButtonClassName}
+          onSelectionChange={permissionData.onSelectionChange}
+          externalSelectedOption={permissionData.externalSelectedOption}
+        />
+      );
   }
 
   return (

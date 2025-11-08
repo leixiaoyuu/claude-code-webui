@@ -218,6 +218,11 @@ export type {
   ChatRequest,
   ProjectsResponse,
   ProjectInfo,
+  PermissionRequestEvent,
+  PermissionDecisionRequest,
+  PermissionUpdate,
+  PermissionRuleValue,
+  PermissionBehavior,
 } from "../../shared/types";
 
 // Re-export SDK types

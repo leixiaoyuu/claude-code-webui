@@ -17,8 +17,10 @@ import { handleHistoriesRequest } from "./handlers/histories.ts";
 import { handleConversationRequest } from "./handlers/conversations.ts";
 import { handleChatRequest } from "./handlers/chat.ts";
 import { handleAbortRequest } from "./handlers/abort.ts";
+import { handlePermissionDecisionRequest } from "./handlers/permissions.ts";
 import { logger } from "./utils/logger.ts";
 import { readBinaryFile } from "./utils/fs.ts";
+import { PermissionRequestManager } from "./permissions/manager.ts";
 
 export interface AppConfig {
   debugMode: boolean;
@@ -34,6 +36,7 @@ export function createApp(
 
   // Store AbortControllers for each request (shared with chat handler)
   const requestAbortControllers = new Map<string, AbortController>();
+  const permissionRequestManager = new PermissionRequestManager();
 
   // CORS middleware
   app.use(
@@ -70,7 +73,13 @@ export function createApp(
     handleAbortRequest(c, requestAbortControllers),
   );
 
-  app.post("/api/chat", (c) => handleChatRequest(c, requestAbortControllers));
+  app.post("/api/chat", (c) =>
+    handleChatRequest(c, requestAbortControllers, permissionRequestManager),
+  );
+
+  app.post("/api/permissions/:permissionRequestId", (c) =>
+    handlePermissionDecisionRequest(c, permissionRequestManager),
+  );
 
   // Static file serving with SPA fallback
   // Serve static assets (CSS, JS, images, etc.)

@@ -20,7 +20,7 @@ export function parseCliArgs(): ParsedArgs {
   const version = VERSION;
 
   // Get default port from environment
-  const defaultPort = parseInt(getEnv("PORT") || "8080", 10);
+  const defaultPort = parseInt(getEnv("PORT") || "22080", 10);
 
   // Configure program
   program

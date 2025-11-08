@@ -6,6 +6,7 @@ export const API_CONFIG = {
     PROJECTS: "/api/projects",
     HISTORIES: "/api/projects",
     CONVERSATIONS: "/api/projects",
+    PERMISSIONS: "/api/permissions",
   },
 } as const;
 
@@ -41,4 +42,8 @@ export const getConversationUrl = (
   sessionId: string,
 ) => {
   return `${API_CONFIG.ENDPOINTS.CONVERSATIONS}/${encodedProjectName}/histories/${sessionId}`;
+};
+
+export const getPermissionDecisionUrl = (permissionRequestId: string) => {
+  return `${API_CONFIG.ENDPOINTS.PERMISSIONS}/${permissionRequestId}`;
 };

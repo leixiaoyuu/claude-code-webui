@@ -6,7 +6,7 @@
 import type {
   SDKAssistantMessage,
   SDKUserMessage,
-} from "@anthropic-ai/claude-code";
+} from "@anthropic-ai/claude-agent-sdk";
 import { logger } from "../utils/logger.ts";
 import { readTextFile, readDir } from "../utils/fs.ts";
 

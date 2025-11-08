@@ -2,19 +2,22 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Context } from "hono";
 import { handleChatRequest } from "./chat";
 import type { ChatRequest } from "../../shared/types";
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
+import { globalPermissionRequestManager } from "../permissions/manager";
 
-// Define minimal mock types for Claude Code SDK to maintain type safety in tests
-type MockClaudeCode = {
-  query: typeof vi.fn;
-};
+vi.mock("@anthropic-ai/claude-agent-sdk", () => {
+  class MockAbortError extends Error {
+    constructor(message?: string) {
+      super(message);
+      this.name = "AbortError";
+    }
+  }
 
-vi.mock(
-  "@anthropic-ai/claude-code",
-  (): MockClaudeCode => ({
+  return {
     query: vi.fn(),
-  }),
-);
+    AbortError: MockAbortError,
+  } as Record<string, unknown>;
+});
 
 // Mock logger
 vi.mock("../utils/logger", () => ({
@@ -52,6 +55,7 @@ describe("Chat Handler - Permission Mode Tests", () => {
 
   afterEach(() => {
     requestAbortControllers.clear();
+    globalPermissionRequestManager.clearAll();
   });
 
   describe("Permission Mode Parameter Handling", () => {
@@ -572,5 +576,34 @@ describe("Chat Handler - Permission Mode Tests", () => {
 
       expect(capturedController).toBeInstanceOf(AbortController);
     });
+  });
+
+  it("should attach canUseTool handler for permission bridging", async () => {
+    const chatRequest: ChatRequest = {
+      message: "Test",
+      requestId: "permission-check",
+    };
+
+    mockContext.req.json = vi.fn().mockResolvedValue(chatRequest);
+
+    mockQuery.mockReturnValue({
+      [Symbol.asyncIterator]: async function* () {
+        yield {
+          type: "assistant",
+          message: { content: [{ type: "text", text: "Response" }] },
+          session_id: "session",
+          parent_tool_use_id: null,
+        } as any;
+      },
+      interrupt: vi.fn(),
+      next: vi.fn(),
+      return: vi.fn(),
+      throw: vi.fn(),
+    } as any);
+
+    await handleChatRequest(mockContext, requestAbortControllers);
+
+    const queryCall = mockQuery.mock.calls[0]?.[0];
+    expect(typeof queryCall?.options?.canUseTool).toBe("function");
   });
 });

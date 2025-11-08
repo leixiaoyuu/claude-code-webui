@@ -716,7 +716,7 @@ A modern, web-based interface for the Claude Code CLI tool that provides streami
 
 2. **Start the Application**
    \`\`\`bash
-   # Start backend (port 8080)
+   # Start backend (port 22080)
    cd backend && npm run dev
    
    # Start frontend (port 3000)

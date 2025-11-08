@@ -4,6 +4,7 @@ import type {
   SDKMessage,
   SystemMessage,
   AbortMessage,
+  PermissionRequestEvent,
 } from "../../types";
 import {
   isSystemMessage,
@@ -102,6 +103,10 @@ export function useStreamParser() {
           // data.data is already an SDKMessage object, no need to parse
           const claudeData = data.data as SDKMessage;
           processClaudeData(claudeData, context);
+        } else if (data.type === "permission_request" && data.data) {
+          context.onPermissionRequest?.(
+            data.data as PermissionRequestEvent,
+          );
         } else if (data.type === "error") {
           const errorMessage: SystemMessage = {
             type: "error",

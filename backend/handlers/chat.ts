@@ -1,7 +1,16 @@
 import { Context } from "hono";
-import { query, type PermissionMode } from "@anthropic-ai/claude-code";
+import {
+  AbortError,
+  query,
+  type PermissionMode,
+  type CanUseTool,
+} from "@anthropic-ai/claude-agent-sdk";
 import type { ChatRequest, StreamResponse } from "../../shared/types.ts";
 import { logger } from "../utils/logger.ts";
+import {
+  PermissionRequestManager,
+  globalPermissionRequestManager,
+} from "../permissions/manager.ts";
 
 /**
  * Executes a Claude command and yields streaming responses
@@ -24,8 +33,58 @@ async function* executeClaudeCommand(
   allowedTools?: string[],
   workingDirectory?: string,
   permissionMode?: PermissionMode,
+  permissionManager?: PermissionRequestManager,
+  sendStreamResponse?: (chunk: StreamResponse) => void,
 ): AsyncGenerator<StreamResponse> {
   let abortController: AbortController;
+  const emitStreamResponse =
+    sendStreamResponse ?? (() => {
+      /* noop */
+    });
+
+  const buildPermissionHandler = (): CanUseTool | undefined => {
+    if (!permissionManager) {
+      return undefined;
+    }
+
+    return async (toolName, input, options) => {
+      const { payload, resultPromise, permissionRequestId } =
+        permissionManager.createRequest({
+          requestId,
+          sessionId,
+          toolName,
+          input,
+          suggestions: options.suggestions,
+        });
+
+      logger.chat.debug("Permission requested for tool {toolName}", {
+        toolName,
+        permissionRequestId,
+      });
+
+      emitStreamResponse({
+        type: "permission_request",
+        data: payload,
+      });
+
+      const onAbort = () => {
+        permissionManager.rejectRequest(
+          permissionRequestId,
+          new AbortError("Permission request aborted"),
+        );
+      };
+
+      options.signal.addEventListener("abort", onAbort, { once: true });
+
+      try {
+        return await resultPromise;
+      } finally {
+        options.signal.removeEventListener("abort", onAbort);
+      }
+    };
+  };
+
+  const canUseTool = buildPermissionHandler();
 
   try {
     // Process commands that start with '/'
@@ -50,6 +109,7 @@ async function* executeClaudeCommand(
         ...(allowedTools ? { allowedTools } : {}),
         ...(workingDirectory ? { cwd: workingDirectory } : {}),
         ...(permissionMode ? { permissionMode } : {}),
+        ...(canUseTool ? { canUseTool } : {}),
       },
     })) {
       // Debug logging of raw SDK messages with detailed content
@@ -63,12 +123,10 @@ async function* executeClaudeCommand(
 
     yield { type: "done" };
   } catch (error) {
-    // Check if error is due to abort
-    // TODO: Re-enable when AbortError is properly exported from Claude SDK
-    // if (error instanceof AbortError) {
-    //   yield { type: "aborted" };
-    // } else {
-    {
+    if (error instanceof AbortError) {
+      logger.chat.debug("Claude Code request aborted by user");
+      yield { type: "aborted" };
+    } else {
       logger.chat.error("Claude Code execution failed: {error}", { error });
       yield {
         type: "error",
@@ -79,6 +137,13 @@ async function* executeClaudeCommand(
     // Clean up AbortController from map
     if (requestAbortControllers.has(requestId)) {
       requestAbortControllers.delete(requestId);
+    }
+
+    if (permissionManager) {
+      permissionManager.rejectRequestsForChatRequest(
+        requestId,
+        new AbortError("Chat request ended before permission resolution"),
+      );
     }
   }
 }
@@ -92,6 +157,8 @@ async function* executeClaudeCommand(
 export async function handleChatRequest(
   c: Context,
   requestAbortControllers: Map<string, AbortController>,
+  permissionRequestManager: PermissionRequestManager =
+    globalPermissionRequestManager,
 ) {
   const chatRequest: ChatRequest = await c.req.json();
   const { cliPath } = c.var.config;
@@ -103,6 +170,12 @@ export async function handleChatRequest(
 
   const stream = new ReadableStream({
     async start(controller) {
+      const encoder = new TextEncoder();
+      const sendChunk = (chunk: StreamResponse) => {
+        const data = JSON.stringify(chunk) + "\n";
+        controller.enqueue(encoder.encode(data));
+      };
+
       try {
         for await (const chunk of executeClaudeCommand(
           chatRequest.message,
@@ -113,9 +186,10 @@ export async function handleChatRequest(
           chatRequest.allowedTools,
           chatRequest.workingDirectory,
           chatRequest.permissionMode,
+          permissionRequestManager,
+          sendChunk,
         )) {
-          const data = JSON.stringify(chunk) + "\n";
-          controller.enqueue(new TextEncoder().encode(data));
+          sendChunk(chunk);
         }
         controller.close();
       } catch (error) {
@@ -123,9 +197,7 @@ export async function handleChatRequest(
           type: "error",
           error: error instanceof Error ? error.message : String(error),
         };
-        controller.enqueue(
-          new TextEncoder().encode(JSON.stringify(errorResponse) + "\n"),
-        );
+        sendChunk(errorResponse);
         controller.close();
       }
     },

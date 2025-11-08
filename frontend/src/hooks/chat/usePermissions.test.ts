@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { usePermissions } from "./usePermissions";
 
@@ -9,6 +9,11 @@ describe("usePermissions", () => {
     expect(result.current.permissionRequest).toBeNull();
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
   it("should show permission request", () => {
     const { result } = renderHook(() => usePermissions());
 
@@ -16,11 +21,12 @@ describe("usePermissions", () => {
       result.current.showPermissionRequest("Bash", ["Bash(ls:*)"], "tool-123");
     });
 
-    expect(result.current.permissionRequest).toEqual({
+    expect(result.current.permissionRequest).toMatchObject({
       isOpen: true,
       toolName: "Bash",
       patterns: ["Bash(ls:*)"],
       toolUseId: "tool-123",
+      isProcessing: false,
     });
   });
 
@@ -136,7 +142,7 @@ describe("usePermissions", () => {
       result.current.showPermissionRequest("Bash", [], "tool-123");
     });
 
-    expect(result.current.permissionRequest).toEqual({
+    expect(result.current.permissionRequest).toMatchObject({
       isOpen: true,
       toolName: "Bash",
       patterns: [],
@@ -154,11 +160,79 @@ describe("usePermissions", () => {
       result.current.showPermissionRequest("Bash", patterns, "tool-123");
     });
 
-    expect(result.current.permissionRequest).toEqual({
+    expect(result.current.permissionRequest).toMatchObject({
       isOpen: true,
       toolName: "Bash",
       patterns: ["Bash(command:*)"],
       toolUseId: "tool-123",
     });
+  });
+
+  it("should handle interactive permission requests and submit decisions", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => usePermissions());
+
+    act(() => {
+      result.current.showInteractivePermissionRequest({
+        permissionRequestId: "perm-1",
+        requestId: "req-1",
+        toolName: "WebSearch",
+        input: { query: "test" },
+        suggestions: [
+          {
+            type: "addRules",
+            behavior: "allow",
+            destination: "session",
+            rules: [{ toolName: "WebSearch" }],
+          },
+        ],
+      } as any);
+    });
+
+    await act(async () => {
+      await result.current.respondToInteractivePermissionRequest({
+        behavior: "allow",
+        permanent: true,
+      });
+    });
+
+    expect(fetchMock).toHaveBeenCalled();
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.updatedPermissions).toEqual([
+      expect.objectContaining({
+        type: "addRules",
+        behavior: "allow",
+        destination: "session",
+      }),
+    ]);
+  });
+
+  it("should skip updatedPermissions when suggestions missing", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => usePermissions());
+
+    act(() => {
+      result.current.showInteractivePermissionRequest({
+        permissionRequestId: "perm-2",
+        requestId: "req-2",
+        toolName: "WebSearch",
+        input: { query: "test" },
+        suggestions: [],
+      } as any);
+    });
+
+    await act(async () => {
+      await result.current.respondToInteractivePermissionRequest({
+        behavior: "allow",
+        permanent: true,
+      });
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.updatedPermissions).toBeUndefined();
   });
 });

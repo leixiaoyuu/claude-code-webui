@@ -1,6 +1,70 @@
+export type PermissionBehavior = "allow" | "deny";
+
+export type PermissionRuleValue = {
+  toolName: string;
+  ruleContent?: string;
+};
+
+export type PermissionUpdate =
+  | {
+      type: "addRules";
+      rules: PermissionRuleValue[];
+      behavior: PermissionBehavior;
+      destination: "userSettings" | "projectSettings" | "localSettings" | "session";
+    }
+  | {
+      type: "replaceRules";
+      rules: PermissionRuleValue[];
+      behavior: PermissionBehavior;
+      destination: "userSettings" | "projectSettings" | "localSettings" | "session";
+    }
+  | {
+      type: "removeRules";
+      rules: PermissionRuleValue[];
+      behavior: PermissionBehavior;
+      destination: "userSettings" | "projectSettings" | "localSettings" | "session";
+    }
+  | {
+    type: "setMode";
+    mode: "default" | "plan" | "acceptEdits" | "bypassPermissions";
+    destination: "userSettings" | "projectSettings" | "localSettings" | "session";
+  }
+  | {
+      type: "addDirectories";
+      directories: string[];
+      destination: "userSettings" | "projectSettings" | "localSettings" | "session";
+    }
+  | {
+      type: "removeDirectories";
+      directories: string[];
+      destination: "userSettings" | "projectSettings" | "localSettings" | "session";
+    };
+
+export interface PermissionRequestEvent {
+  permissionRequestId: string;
+  requestId: string;
+  sessionId?: string;
+  toolName: string;
+  input: Record<string, unknown>;
+  suggestions?: PermissionUpdate[];
+}
+
+export interface PermissionDecisionRequest {
+  behavior: PermissionBehavior;
+  updatedInput?: Record<string, unknown>;
+  message?: string;
+  interrupt?: boolean;
+  updatedPermissions?: PermissionUpdate[];
+}
+
 export interface StreamResponse {
-  type: "claude_json" | "error" | "done" | "aborted";
-  data?: unknown; // SDKMessage object for claude_json type
+  type:
+    | "claude_json"
+    | "error"
+    | "done"
+    | "aborted"
+    | "permission_request";
+  data?: unknown; // SDKMessage object for claude_json type or PermissionRequestEvent for permission_request
   error?: string;
 }
 

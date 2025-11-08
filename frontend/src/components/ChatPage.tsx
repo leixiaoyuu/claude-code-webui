@@ -118,11 +118,13 @@ export function ChatPage() {
     closePermissionRequest,
     allowToolTemporary,
     allowToolPermanent,
+    showInteractivePermissionRequest,
     isPermissionMode,
     planModeRequest,
     showPlanModeRequest,
     closePlanModeRequest,
     updatePermissionMode,
+    respondToInteractivePermissionRequest,
   } = usePermissions({
     onPermissionModeChange: setPermissionMode,
   });
@@ -205,6 +207,7 @@ export function ChatPage() {
             setHasReceivedInit(received);
           },
           onPermissionError: handlePermissionError,
+          onPermissionRequest: showInteractivePermissionRequest,
           onAbortRequest: async () => {
             shouldAbort = true;
             await createAbortHandler(requestId)();
@@ -270,6 +273,11 @@ export function ChatPage() {
   const handlePermissionAllow = useCallback(() => {
     if (!permissionRequest) return;
 
+    if (permissionRequest.interactive) {
+      void respondToInteractivePermissionRequest({ behavior: "allow" });
+      return;
+    }
+
     // Add all patterns temporarily
     let updatedAllowedTools = allowedTools;
     permissionRequest.patterns.forEach((pattern) => {
@@ -288,10 +296,25 @@ export function ChatPage() {
     allowedTools,
     allowToolTemporary,
     closePermissionRequest,
+    respondToInteractivePermissionRequest,
   ]);
 
   const handlePermissionAllowPermanent = useCallback(() => {
     if (!permissionRequest) return;
+
+    if (permissionRequest.interactive) {
+      const canPersist = Boolean(
+        permissionRequest.interactive.suggestions?.length,
+      );
+      if (!canPersist) {
+        return;
+      }
+      void respondToInteractivePermissionRequest({
+        behavior: "allow",
+        permanent: true,
+      });
+      return;
+    }
 
     // Add all patterns permanently
     let updatedAllowedTools = allowedTools;
@@ -311,11 +334,23 @@ export function ChatPage() {
     allowedTools,
     allowToolPermanent,
     closePermissionRequest,
+    respondToInteractivePermissionRequest,
   ]);
 
   const handlePermissionDeny = useCallback(() => {
+    if (!permissionRequest) return;
+
+    if (permissionRequest.interactive) {
+      void respondToInteractivePermissionRequest({
+        behavior: "deny",
+        message: "User denied permission",
+        interrupt: true,
+      });
+      return;
+    }
+
     closePermissionRequest();
-  }, [closePermissionRequest]);
+  }, [closePermissionRequest, permissionRequest, respondToInteractivePermissionRequest]);
 
   // Plan mode request handlers
   const handlePlanAcceptWithEdits = useCallback(() => {
@@ -358,6 +393,12 @@ export function ChatPage() {
         onAllow: handlePermissionAllow,
         onAllowPermanent: handlePermissionAllowPermanent,
         onDeny: handlePermissionDeny,
+        disableAllowPermanent: Boolean(
+          permissionRequest.interactive &&
+            !(permissionRequest.interactive.suggestions?.length),
+        ),
+        isProcessing: permissionRequest.isProcessing,
+        errorMessage: permissionRequest.error,
       }
     : undefined;
 

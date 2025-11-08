@@ -10,7 +10,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, resolve(__dirname, ".."), "");
-  const apiPort = env.PORT || "8080";
+  const apiHost = env.VITE_BACKEND_HOST || env.BACKEND_HOST || "127.0.0.1";
+  const apiPort = env.VITE_BACKEND_PORT || env.BACKEND_PORT || "22080";
 
   return {
     plugins: [react(), tailwindcss()],
@@ -23,7 +24,7 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       proxy: {
         "/api": {
-          target: `http://localhost:${apiPort}`,
+          target: `http://${apiHost}:${apiPort}`,
           changeOrigin: true,
           secure: false,
         },

@@ -80,6 +80,9 @@ interface PermissionInputPanelProps {
   onAllow: () => void;
   onAllowPermanent: () => void;
   onDeny: () => void;
+  disableAllowPermanent?: boolean;
+  isProcessing?: boolean;
+  errorMessage?: string;
   // Optional extension point for custom button styling (e.g., demo effects)
   getButtonClassName?: (
     buttonType: "allow" | "allowPermanent" | "deny",
@@ -96,6 +99,9 @@ export function PermissionInputPanel({
   onAllow,
   onAllowPermanent,
   onDeny,
+  disableAllowPermanent = false,
+  isProcessing = false,
+  errorMessage,
   getButtonClassName = (_, defaultClassName) => defaultClassName, // Default: no modification
   onSelectionChange, // Optional callback for demo automation
   externalSelectedOption, // Optional external control for demo automation
@@ -124,8 +130,8 @@ export function PermissionInputPanel({
 
   // Handle keyboard navigation
   useEffect(() => {
-    // Skip keyboard navigation if controlled externally (demo mode)
-    if (externalSelectedOption !== undefined) return;
+    // Skip keyboard navigation if controlled externally (demo mode) or busy
+    if (externalSelectedOption !== undefined || isProcessing) return;
 
     // Define options array inside useEffect to avoid unnecessary re-renders
     const options = ["allow", "allowPermanent", "deny"] as const;
@@ -166,6 +172,8 @@ export function PermissionInputPanel({
     onDeny,
     updateSelectedOption,
     externalSelectedOption,
+    isProcessing,
+    disableAllowPermanent,
   ]);
 
   return (
@@ -192,6 +200,7 @@ export function PermissionInputPanel({
       <div className="space-y-2">
         <button
           onClick={() => {
+            if (isProcessing) return;
             updateSelectedOption("allow");
             onAllow();
           }}
@@ -209,12 +218,13 @@ export function PermissionInputPanel({
           }}
           className={getButtonClassName(
             "allow",
-            `w-full p-3 rounded-lg cursor-pointer transition-all duration-200 text-left focus:outline-none ${
+            `w-full p-3 rounded-lg cursor-pointer transition-all duration-200 text-left focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
               effectiveSelectedOption === "allow"
                 ? "bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500 dark:border-blue-400 shadow-sm"
                 : "border-2 border-transparent"
             }`,
           )}
+          disabled={isProcessing}
         >
           <span
             className={`text-sm font-medium ${
@@ -229,6 +239,7 @@ export function PermissionInputPanel({
 
         <button
           onClick={() => {
+            if (isProcessing || disableAllowPermanent) return;
             updateSelectedOption("allowPermanent");
             onAllowPermanent();
           }}
@@ -246,12 +257,18 @@ export function PermissionInputPanel({
           }}
           className={getButtonClassName(
             "allowPermanent",
-            `w-full p-3 rounded-lg cursor-pointer transition-all duration-200 text-left focus:outline-none ${
+            `w-full p-3 rounded-lg cursor-pointer transition-all duration-200 text-left focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
               effectiveSelectedOption === "allowPermanent"
                 ? "bg-green-50 dark:bg-green-900/20 border-2 border-green-500 dark:border-green-400 shadow-sm"
                 : "border-2 border-transparent"
             }`,
           )}
+          disabled={isProcessing || disableAllowPermanent}
+          title={
+            disableAllowPermanent
+              ? "Always allow is unavailable for this request"
+              : undefined
+          }
         >
           <span
             className={`text-sm font-medium ${
@@ -266,6 +283,7 @@ export function PermissionInputPanel({
 
         <button
           onClick={() => {
+            if (isProcessing) return;
             updateSelectedOption("deny");
             onDeny();
           }}
@@ -283,12 +301,13 @@ export function PermissionInputPanel({
           }}
           className={getButtonClassName(
             "deny",
-            `w-full p-3 rounded-lg cursor-pointer transition-all duration-200 text-left focus:outline-none ${
+            `w-full p-3 rounded-lg cursor-pointer transition-all duration-200 text-left focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
               effectiveSelectedOption === "deny"
                 ? "bg-slate-50 dark:bg-slate-800 border-2 border-slate-400 dark:border-slate-500 shadow-sm"
                 : "border-2 border-transparent"
             }`,
           )}
+          disabled={isProcessing}
         >
           <span
             className={`text-sm font-medium ${
@@ -301,6 +320,25 @@ export function PermissionInputPanel({
           </span>
         </button>
       </div>
+
+      {disableAllowPermanent && (
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
+          Always allow is unavailable because Claude did not provide a
+          persistent permission rule for this request.
+        </p>
+      )}
+
+      {errorMessage && (
+        <p className="text-sm text-red-600 dark:text-red-400 mt-3">
+          {errorMessage}
+        </p>
+      )}
+
+      {isProcessing && !errorMessage && (
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-3">
+          Submitting your decision...
+        </p>
+      )}
     </div>
   );
 }

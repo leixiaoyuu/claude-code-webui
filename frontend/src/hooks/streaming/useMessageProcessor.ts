@@ -1,4 +1,8 @@
-import type { AllMessage, ChatMessage } from "../../types";
+import type {
+  AllMessage,
+  ChatMessage,
+  PermissionRequestEvent,
+} from "../../types";
 import { useMessageConverter } from "../useMessageConverter";
 
 export interface StreamingContext {
@@ -16,6 +20,7 @@ export interface StreamingContext {
     patterns: string[],
     toolUseId: string,
   ) => void;
+  onPermissionRequest?: (event: PermissionRequestEvent) => void;
   onAbortRequest?: () => void;
 }
 
