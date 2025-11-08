@@ -154,6 +154,8 @@ export function ChatInput({
   // Get permission mode status indicator (CLI-style)
   const getPermissionModeIndicator = (mode: PermissionMode): string => {
     switch (mode) {
+      case "bypassPermissions":
+        return "⚡ bypass permissions";
       case "default":
         return "🔧 normal mode";
       case "plan":
@@ -161,11 +163,14 @@ export function ChatInput({
       case "acceptEdits":
         return "⏵⏵ accept edits";
     }
+    return "⚡ bypass permissions";
   };
 
   // Get clean permission mode name (without emoji)
   const getPermissionModeName = (mode: PermissionMode): string => {
     switch (mode) {
+      case "bypassPermissions":
+        return "bypass permissions";
       case "default":
         return "normal mode";
       case "plan":
@@ -173,11 +178,17 @@ export function ChatInput({
       case "acceptEdits":
         return "accept edits";
     }
+    return "bypass permissions";
   };
 
   // Get next permission mode for cycling
   const getNextPermissionMode = (current: PermissionMode): PermissionMode => {
-    const modes: PermissionMode[] = ["default", "plan", "acceptEdits"];
+    const modes: PermissionMode[] = [
+      "bypassPermissions",
+      "default",
+      "plan",
+      "acceptEdits",
+    ];
     const currentIndex = modes.indexOf(current);
     return modes[(currentIndex + 1) % modes.length];
   };

@@ -4,6 +4,7 @@ import {
   query,
   type PermissionMode,
   type CanUseTool,
+  type SettingSource,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { ChatRequest, StreamResponse } from "../../shared/types.ts";
 import { logger } from "../utils/logger.ts";
@@ -11,6 +12,8 @@ import {
   PermissionRequestManager,
   globalPermissionRequestManager,
 } from "../permissions/manager.ts";
+
+const DEFAULT_SETTING_SOURCES: SettingSource[] = ["project", "user"];
 
 /**
  * Executes a Claude command and yields streaming responses
@@ -85,6 +88,7 @@ async function* executeClaudeCommand(
   };
 
   const canUseTool = buildPermissionHandler();
+  const effectivePermissionMode = permissionMode ?? "bypassPermissions";
 
   try {
     // Process commands that start with '/'
@@ -108,7 +112,8 @@ async function* executeClaudeCommand(
         ...(sessionId ? { resume: sessionId } : {}),
         ...(allowedTools ? { allowedTools } : {}),
         ...(workingDirectory ? { cwd: workingDirectory } : {}),
-        ...(permissionMode ? { permissionMode } : {}),
+        settingSources: DEFAULT_SETTING_SOURCES,
+        permissionMode: effectivePermissionMode,
         ...(canUseTool ? { canUseTool } : {}),
       },
     })) {

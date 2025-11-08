@@ -104,6 +104,35 @@ describe("Chat Handler - Permission Mode Tests", () => {
       expect(response.headers.get("Content-Type")).toBe("application/x-ndjson");
     });
 
+    it("should always include project/user settingSources", async () => {
+      const chatRequest: ChatRequest = {
+        message: "With MCP",
+        requestId: "test-setting-sources",
+      };
+
+      mockContext.req.json = vi.fn().mockResolvedValue(chatRequest);
+
+      mockQuery.mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          yield {
+            type: "assistant",
+            message: { content: [{ type: "text", text: "Response" }] },
+            session_id: "test-session",
+            parent_tool_use_id: null,
+          } as any;
+        },
+        interrupt: vi.fn(),
+        next: vi.fn(),
+        return: vi.fn(),
+        throw: vi.fn(),
+      } as any);
+
+      await handleChatRequest(mockContext, requestAbortControllers);
+
+      const queryCall = mockQuery.mock.calls[0][0];
+      expect(queryCall.options.settingSources).toEqual(["project", "user"]);
+    });
+
     it("should pass permissionMode 'acceptEdits' to Claude SDK", async () => {
       const chatRequest: ChatRequest = {
         message: "Test message",
@@ -172,7 +201,7 @@ describe("Chat Handler - Permission Mode Tests", () => {
       });
     });
 
-    it("should not include permissionMode in options when undefined", async () => {
+    it("should default permissionMode to 'bypassPermissions' when undefined", async () => {
       const chatRequest: ChatRequest = {
         message: "Test message",
         requestId: "test-undefined",
@@ -199,7 +228,7 @@ describe("Chat Handler - Permission Mode Tests", () => {
       await handleChatRequest(mockContext, requestAbortControllers);
 
       const queryCall = mockQuery.mock.calls[0][0];
-      expect(queryCall.options).not.toHaveProperty("permissionMode");
+      expect(queryCall.options.permissionMode).toBe("bypassPermissions");
     });
 
     it("should handle permissionMode alongside other parameters", async () => {

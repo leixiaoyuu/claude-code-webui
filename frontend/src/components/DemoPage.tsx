@@ -439,7 +439,7 @@ export function DemoPage() {
           onInputChange={() => {}} // No-op in demo - intentionally blocks user input to simulate a controlled environment where input is not required or allowed
           onSubmit={handleSendMessage}
           onAbort={() => {}} // No-op in demo
-          permissionMode="default" // Demo always uses default mode
+          permissionMode="bypassPermissions" // Demo mirrors default bypass mode
           onPermissionModeChange={() => {}} // No-op in demo
           showPermissions={isPermissionMode}
           permissionData={permissionData}

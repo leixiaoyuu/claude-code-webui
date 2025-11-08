@@ -49,7 +49,7 @@ export function createSystemMessage(
     tools: ["Read", "Write", "Edit", "Bash"],
     mcp_servers: [],
     model: "claude-3-5-sonnet-20241022",
-    permissionMode: "default",
+    permissionMode: "bypassPermissions",
     slash_commands: [],
     output_style: "default",
   };

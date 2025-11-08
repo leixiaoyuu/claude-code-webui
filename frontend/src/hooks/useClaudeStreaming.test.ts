@@ -29,7 +29,7 @@ describe("useClaudeStreaming", () => {
       tools: ["Bash"],
       mcp_servers: [],
       model: "claude-3-sonnet",
-      permissionMode: "default" as const,
+      permissionMode: "bypassPermissions" as const,
       slash_commands: [],
       output_style: "default",
     };
@@ -198,7 +198,7 @@ describe("useClaudeStreaming", () => {
       tools: ["Bash"],
       mcp_servers: [],
       model: "claude-3-sonnet",
-      permissionMode: "default" as const,
+      permissionMode: "bypassPermissions" as const,
       slash_commands: [],
       output_style: "default",
     };
