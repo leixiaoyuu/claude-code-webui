@@ -7,6 +7,7 @@ import { useMessageConverter } from "../useMessageConverter";
 
 export interface StreamingContext {
   currentAssistantMessage: ChatMessage | null;
+  getCurrentAssistantMessage?: () => ChatMessage | null;
   setCurrentAssistantMessage: (msg: ChatMessage | null) => void;
   addMessage: (msg: AllMessage) => void;
   updateLastMessage: (content: string) => void;

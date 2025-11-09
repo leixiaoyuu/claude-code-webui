@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useStreamParser } from "./useStreamParser";
 import type { StreamingContext } from "./useMessageProcessor";
-import type { SDKMessage } from "../../types";
+import type { SDKMessage, ChatMessage } from "../../types";
 import { generateId } from "../../utils/id";
 
 // Mock dependencies
@@ -14,14 +14,25 @@ describe("useStreamParser", () => {
     mockContext = {
       addMessage: vi.fn(),
       updateLastMessage: vi.fn(),
-      setCurrentAssistantMessage: vi.fn(),
       currentAssistantMessage: null,
+      setCurrentAssistantMessage: vi.fn(),
+      getCurrentAssistantMessage: vi.fn(),
       onSessionId: vi.fn(),
       hasReceivedInit: false,
       setHasReceivedInit: vi.fn(),
       shouldShowInitMessage: vi.fn(() => true),
       onInitMessageShown: vi.fn(),
     };
+
+    mockContext.setCurrentAssistantMessage = vi.fn(
+      (message: ChatMessage | null) => {
+        mockContext.currentAssistantMessage = message;
+      },
+    );
+
+    mockContext.getCurrentAssistantMessage = vi.fn(
+      () => mockContext.currentAssistantMessage,
+    );
 
     vi.clearAllMocks();
   });
@@ -268,6 +279,116 @@ describe("useStreamParser", () => {
     });
   });
 
+  describe("Stream event handling", () => {
+    it("should append assistant text when receiving text deltas", () => {
+      const { result } = renderHook(() => useStreamParser());
+
+      const streamEvent = {
+        type: "stream_event" as const,
+        session_id: "session",
+        uuid: generateId(),
+        parent_tool_use_id: null,
+        event: {
+          type: "content_block_delta",
+          delta: {
+            type: "text_delta",
+            text: "Hello",
+          },
+        },
+      };
+
+      result.current.processStreamLine(
+        JSON.stringify({ type: "claude_json", data: streamEvent }),
+        mockContext,
+      );
+
+      expect(mockContext.addMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "chat",
+          role: "assistant",
+          content: "Hello",
+        }),
+      );
+
+      const nextEvent = {
+        ...streamEvent,
+        event: {
+          type: "content_block_delta",
+          delta: {
+            type: "text_delta",
+            text: " world",
+          },
+        },
+      };
+
+      const existingAssistant = {
+        type: "chat" as const,
+        role: "assistant" as const,
+        content: "Hello",
+        timestamp: Date.now(),
+      };
+
+      mockContext.setCurrentAssistantMessage(existingAssistant as ChatMessage);
+
+      result.current.processStreamLine(
+        JSON.stringify({ type: "claude_json", data: nextEvent }),
+        mockContext,
+      );
+
+      expect(mockContext.updateLastMessage).toHaveBeenCalledWith("Hello world");
+    });
+
+    it("should not duplicate assistant text when final message arrives", () => {
+      const { result } = renderHook(() => useStreamParser());
+
+      const streamEvent = {
+        type: "stream_event" as const,
+        session_id: "session",
+        uuid: generateId(),
+        parent_tool_use_id: null,
+        event: {
+          type: "content_block_delta",
+          delta: {
+            type: "text_delta",
+            text: "Hello world",
+          },
+        },
+      };
+
+      result.current.processStreamLine(
+        JSON.stringify({ type: "claude_json", data: streamEvent }),
+        mockContext,
+      );
+
+      const initialAddCount = (mockContext.addMessage as any).mock.calls.length;
+
+      const assistantMessage: Extract<SDKMessage, { type: "assistant" }> = {
+        type: "assistant",
+        session_id: "session",
+        uuid: generateId(),
+        parent_tool_use_id: null,
+        message: {
+          content: [
+            {
+              type: "text",
+              text: "Hello world",
+            },
+          ],
+        },
+      };
+
+      result.current.processStreamLine(
+        JSON.stringify({ type: "claude_json", data: assistantMessage }),
+        mockContext,
+      );
+
+      expect((mockContext.addMessage as any).mock.calls.length).toBe(
+        initialAddCount,
+      );
+      expect(mockContext.updateLastMessage).toHaveBeenCalledTimes(0);
+    });
+  });
+
   describe("Stream Line Processing and Error Handling", () => {
     it("should handle malformed JSON gracefully", () => {
       const { result } = renderHook(() => useStreamParser());
@@ -395,10 +516,15 @@ describe("useStreamParser", () => {
 
       // Should create/update assistant text message and add plan message
       expect(mockContext.addMessage).toHaveBeenCalledTimes(2);
-      expect(mockContext.updateLastMessage).toHaveBeenCalledWith(
-        "I'll help you with that. Here's my plan:",
+      expect(mockContext.addMessage).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          type: "chat",
+          content: "I'll help you with that. Here's my plan:",
+        }),
       );
-      expect(mockContext.addMessage).toHaveBeenLastCalledWith(
+      expect(mockContext.addMessage).toHaveBeenNthCalledWith(
+        2,
         expect.objectContaining({
           type: "plan",
           plan: "1. Analyze requirements\n2. Design solution\n3. Implement",

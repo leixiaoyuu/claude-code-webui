@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeftIcon } from "@heroicons/react/24/outline";
 import type {
@@ -111,6 +111,22 @@ export function ChatPage() {
     initialSessionId: loadedSessionId || undefined,
   });
 
+  const currentAssistantMessageRef = useRef<ChatMessage | null>(
+    currentAssistantMessage,
+  );
+
+  useEffect(() => {
+    currentAssistantMessageRef.current = currentAssistantMessage;
+  }, [currentAssistantMessage]);
+
+  const setCurrentAssistantMessageWithRef = useCallback(
+    (message: ChatMessage | null) => {
+      currentAssistantMessageRef.current = message;
+      setCurrentAssistantMessage(message);
+    },
+    [setCurrentAssistantMessage],
+  );
+
   const {
     allowedTools,
     permissionRequest,
@@ -186,14 +202,28 @@ export function ChatPage() {
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
+        let buffer = "";
+
+        const processBufferedLines = () => {
+          let newlineIndex = buffer.indexOf("\n");
+          while (!shouldAbort && newlineIndex !== -1) {
+            const line = buffer.slice(0, newlineIndex).trim();
+            buffer = buffer.slice(newlineIndex + 1);
+            if (line) {
+              processStreamLine(line, streamingContext);
+            }
+            newlineIndex = buffer.indexOf("\n");
+          }
+        };
 
         // Local state for this streaming session
         let localHasReceivedInit = false;
         let shouldAbort = false;
 
         const streamingContext: StreamingContext = {
-          currentAssistantMessage,
-          setCurrentAssistantMessage,
+          currentAssistantMessage: currentAssistantMessageRef.current,
+          getCurrentAssistantMessage: () => currentAssistantMessageRef.current,
+          setCurrentAssistantMessage: setCurrentAssistantMessageWithRef,
           addMessage,
           updateLastMessage,
           onSessionId: setCurrentSessionId,
@@ -216,17 +246,20 @@ export function ChatPage() {
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done || shouldAbort) break;
 
-          const chunk = decoder.decode(value);
-          const lines = chunk.split("\n").filter((line) => line.trim());
-
-          for (const line of lines) {
-            if (shouldAbort) break;
-            processStreamLine(line, streamingContext);
+          if (!shouldAbort && value) {
+            buffer += decoder.decode(value, { stream: !done });
+            processBufferedLines();
           }
 
-          if (shouldAbort) break;
+          if (done || shouldAbort) {
+            break;
+          }
+        }
+
+        if (!shouldAbort) {
+          buffer += decoder.decode();
+          processBufferedLines();
         }
       } catch (error) {
         console.error("Failed to send message:", error);

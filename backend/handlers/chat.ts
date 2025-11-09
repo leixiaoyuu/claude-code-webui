@@ -5,8 +5,14 @@ import {
   type PermissionMode,
   type CanUseTool,
   type SettingSource,
+  type SDKUserMessage,
+  type PermissionUpdate as SdkPermissionUpdate,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { ChatRequest, StreamResponse } from "../../shared/types.ts";
+import type {
+  ChatRequest,
+  StreamResponse,
+  PermissionUpdate as SharedPermissionUpdate,
+} from "../../shared/types.ts";
 import { logger } from "../utils/logger.ts";
 import {
   PermissionRequestManager,
@@ -14,6 +20,53 @@ import {
 } from "../permissions/manager.ts";
 
 const DEFAULT_SETTING_SOURCES: SettingSource[] = ["project", "user"];
+
+const isSupportedSuggestion = (
+  suggestion: SdkPermissionUpdate,
+): suggestion is Extract<SdkPermissionUpdate, { behavior: "allow" | "deny" }> => {
+  if (!("behavior" in suggestion)) {
+    return false;
+  }
+
+  return suggestion.behavior === "allow" || suggestion.behavior === "deny";
+};
+
+function normalizePermissionSuggestions(
+  suggestions?: SdkPermissionUpdate[],
+): SharedPermissionUpdate[] | undefined {
+  if (!suggestions?.length) {
+    return undefined;
+  }
+
+  const normalized = suggestions
+    .filter(isSupportedSuggestion)
+    .map((suggestion) => suggestion as SharedPermissionUpdate);
+
+  return normalized.length ? normalized : undefined;
+}
+
+function createStreamingPrompt(message: string): AsyncIterable<SDKUserMessage> {
+  async function* generator(): AsyncGenerator<SDKUserMessage> {
+    const userMessage: SDKUserMessage = {
+      type: "user" as const,
+      session_id: "",
+      message: {
+        role: "user" as const,
+        content: [
+          {
+            type: "text",
+            text: message,
+          },
+        ],
+      },
+      parent_tool_use_id: null,
+    };
+
+    yield userMessage;
+  }
+
+  return generator();
+}
 
 /**
  * Executes a Claude command and yields streaming responses
@@ -57,7 +110,7 @@ async function* executeClaudeCommand(
           sessionId,
           toolName,
           input,
-          suggestions: options.suggestions,
+          suggestions: normalizePermissionSuggestions(options.suggestions),
         });
 
       logger.chat.debug("Permission requested for tool {toolName}", {
@@ -102,8 +155,10 @@ async function* executeClaudeCommand(
     abortController = new AbortController();
     requestAbortControllers.set(requestId, abortController);
 
+    const promptStream = createStreamingPrompt(processedMessage);
+
     for await (const sdkMessage of query({
-      prompt: processedMessage,
+      prompt: promptStream,
       options: {
         abortController,
         executable: "node" as const,
@@ -114,6 +169,7 @@ async function* executeClaudeCommand(
         ...(workingDirectory ? { cwd: workingDirectory } : {}),
         settingSources: DEFAULT_SETTING_SOURCES,
         permissionMode: effectivePermissionMode,
+        includePartialMessages: true,
         ...(canUseTool ? { canUseTool } : {}),
       },
     })) {

@@ -88,6 +88,32 @@ export interface ThinkingMessage {
   timestamp: number;
 }
 
+// Partial streaming event structures
+export interface SDKStreamEventDelta {
+  type: string;
+  text?: string;
+  thinking?: string;
+}
+
+export interface SDKStreamEventContentBlock {
+  type: string;
+  text?: string;
+  thinking?: string;
+}
+
+export interface SDKStreamEventMessage {
+  type: "stream_event";
+  event: {
+    type: string;
+    index?: number;
+    delta?: SDKStreamEventDelta;
+    content_block?: SDKStreamEventContentBlock;
+  };
+  parent_tool_use_id: string | null;
+  uuid: string;
+  session_id: string;
+}
+
 // Todo item structure for TodoWrite tool results
 export interface TodoItem {
   content: string;
@@ -131,6 +157,8 @@ export type AllMessage =
   | PlanMessage
   | ThinkingMessage
   | TodoMessage;
+
+export type ClaudeSDKMessage = SDKMessage | SDKStreamEventMessage;
 
 // Type guard functions
 export function isChatMessage(message: AllMessage): message is ChatMessage {

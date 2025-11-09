@@ -1,7 +1,8 @@
 import { useCallback, useMemo } from "react";
 import type {
   StreamResponse,
-  SDKMessage,
+  ClaudeSDKMessage,
+  SDKStreamEventMessage,
   SystemMessage,
   AbortMessage,
   PermissionRequestEvent,
@@ -32,6 +33,7 @@ export function useStreamParser() {
 
         // Current assistant message state
         currentAssistantMessage: context.currentAssistantMessage,
+        getCurrentAssistantMessage: context.getCurrentAssistantMessage,
         setCurrentAssistantMessage: context.setCurrentAssistantMessage,
 
         // Session handling
@@ -52,7 +54,7 @@ export function useStreamParser() {
   );
 
   const processClaudeData = useCallback(
-    (claudeData: SDKMessage, context: StreamingContext) => {
+    (claudeData: ClaudeSDKMessage, context: StreamingContext) => {
       const processingContext = adaptContext(context);
 
       // Validate message types before processing
@@ -81,6 +83,9 @@ export function useStreamParser() {
             return;
           }
           break;
+        case "stream_event":
+          // stream events are handled separately
+          return;
         default:
           console.log("Unknown Claude message type:", claudeData);
           return;
@@ -94,15 +99,28 @@ export function useStreamParser() {
     [processor, adaptContext],
   );
 
+  const processStreamEvent = useCallback(
+    (claudeData: SDKStreamEventMessage, context: StreamingContext) => {
+      const processingContext = adaptContext(context);
+      processor.processStreamEvent(claudeData, processingContext, {
+        isStreaming: true,
+      });
+    },
+    [processor, adaptContext],
+  );
+
   const processStreamLine = useCallback(
     (line: string, context: StreamingContext) => {
       try {
         const data: StreamResponse = JSON.parse(line);
 
         if (data.type === "claude_json" && data.data) {
-          // data.data is already an SDKMessage object, no need to parse
-          const claudeData = data.data as SDKMessage;
-          processClaudeData(claudeData, context);
+          const claudeData = data.data as ClaudeSDKMessage;
+          if (claudeData.type === "stream_event") {
+            processStreamEvent(claudeData, context);
+          } else {
+            processClaudeData(claudeData, context);
+          }
         } else if (data.type === "permission_request" && data.data) {
           context.onPermissionRequest?.(
             data.data as PermissionRequestEvent,

@@ -31,6 +31,65 @@ vi.mock("../utils/logger", () => ({
 
 const mockQuery = vi.mocked(query);
 
+type QueryCallArgs = {
+  prompt: AsyncIterable<any>;
+  options?: Record<string, any>;
+};
+
+function getLatestQueryCall(): Required<QueryCallArgs> {
+  const call = mockQuery.mock.calls.at(-1)?.[0] as QueryCallArgs | undefined;
+
+  if (!call) {
+    throw new Error("Claude SDK query was not invoked");
+  }
+
+  if (!call.options) {
+    throw new Error("Claude SDK query options are missing");
+  }
+
+  expect(call.options.includePartialMessages).toBe(true);
+
+  return {
+    prompt: call.prompt,
+    options: call.options,
+  };
+}
+
+async function readPromptContent(
+  prompt: AsyncIterable<any>,
+): Promise<string | undefined> {
+  const iterator = prompt[Symbol.asyncIterator]();
+  const { value } = await iterator.next();
+
+  if (iterator.return) {
+    await iterator.return();
+  }
+
+  const content = value?.message?.content;
+
+  if (!content) {
+    return undefined;
+  }
+
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    const textBlock = content.find(
+      (item) =>
+        item && typeof item === "object" &&
+        "type" in item &&
+        item.type === "text" &&
+        typeof (item as { text?: unknown }).text === "string",
+    ) as { text?: string } | undefined;
+
+    return textBlock?.text;
+  }
+
+  return undefined;
+}
+
 describe("Chat Handler - Permission Mode Tests", () => {
   let mockContext: Context;
   let requestAbortControllers: Map<string, AbortController>;
@@ -89,16 +148,15 @@ describe("Chat Handler - Permission Mode Tests", () => {
         requestAbortControllers,
       );
 
-      expect(mockQuery).toHaveBeenCalledWith({
-        prompt: "Test message",
-        options: expect.objectContaining({
-          permissionMode: "plan",
-          abortController: expect.any(AbortController),
-          executable: "node",
-          executableArgs: [],
-          pathToClaudeCodeExecutable: "/path/to/claude-cli",
-        }),
+      const queryCall = getLatestQueryCall();
+      expect(await readPromptContent(queryCall.prompt)).toBe("Test message");
+      expect(queryCall.options).toMatchObject({
+        permissionMode: "plan",
+        executable: "node",
+        executableArgs: [],
+        pathToClaudeCodeExecutable: "/path/to/claude-cli",
       });
+      expect(queryCall.options.abortController).toBeInstanceOf(AbortController);
 
       expect(response).toBeInstanceOf(Response);
       expect(response.headers.get("Content-Type")).toBe("application/x-ndjson");
@@ -129,7 +187,7 @@ describe("Chat Handler - Permission Mode Tests", () => {
 
       await handleChatRequest(mockContext, requestAbortControllers);
 
-      const queryCall = mockQuery.mock.calls[0][0];
+      const queryCall = getLatestQueryCall();
       expect(queryCall.options.settingSources).toEqual(["project", "user"]);
     });
 
@@ -159,12 +217,9 @@ describe("Chat Handler - Permission Mode Tests", () => {
 
       await handleChatRequest(mockContext, requestAbortControllers);
 
-      expect(mockQuery).toHaveBeenCalledWith({
-        prompt: "Test message",
-        options: expect.objectContaining({
-          permissionMode: "acceptEdits",
-        }),
-      });
+      const queryCall = getLatestQueryCall();
+      expect(await readPromptContent(queryCall.prompt)).toBe("Test message");
+      expect(queryCall.options.permissionMode).toBe("acceptEdits");
     });
 
     it("should pass permissionMode 'default' to Claude SDK", async () => {
@@ -193,12 +248,9 @@ describe("Chat Handler - Permission Mode Tests", () => {
 
       await handleChatRequest(mockContext, requestAbortControllers);
 
-      expect(mockQuery).toHaveBeenCalledWith({
-        prompt: "Test message",
-        options: expect.objectContaining({
-          permissionMode: "default",
-        }),
-      });
+      const queryCall = getLatestQueryCall();
+      expect(await readPromptContent(queryCall.prompt)).toBe("Test message");
+      expect(queryCall.options.permissionMode).toBe("default");
     });
 
     it("should default permissionMode to 'bypassPermissions' when undefined", async () => {
@@ -227,7 +279,7 @@ describe("Chat Handler - Permission Mode Tests", () => {
 
       await handleChatRequest(mockContext, requestAbortControllers);
 
-      const queryCall = mockQuery.mock.calls[0][0];
+      const queryCall = getLatestQueryCall();
       expect(queryCall.options.permissionMode).toBe("bypassPermissions");
     });
 
@@ -260,19 +312,20 @@ describe("Chat Handler - Permission Mode Tests", () => {
 
       await handleChatRequest(mockContext, requestAbortControllers);
 
-      expect(mockQuery).toHaveBeenCalledWith({
-        prompt: "Test message with all params",
-        options: expect.objectContaining({
-          permissionMode: "plan",
-          resume: "session-123",
-          allowedTools: ["Bash", "Edit"],
-          cwd: "/project/path",
-          abortController: expect.any(AbortController),
-          executable: "node",
-          executableArgs: [],
-          pathToClaudeCodeExecutable: "/path/to/claude-cli",
-        }),
+      const queryCall = getLatestQueryCall();
+      expect(await readPromptContent(queryCall.prompt)).toBe(
+        "Test message with all params",
+      );
+      expect(queryCall.options).toMatchObject({
+        permissionMode: "plan",
+        resume: "session-123",
+        allowedTools: ["Bash", "Edit"],
+        cwd: "/project/path",
+        executable: "node",
+        executableArgs: [],
+        pathToClaudeCodeExecutable: "/path/to/claude-cli",
       });
+      expect(queryCall.options.abortController).toBeInstanceOf(AbortController);
     });
   });
 
@@ -303,13 +356,9 @@ describe("Chat Handler - Permission Mode Tests", () => {
 
       await handleChatRequest(mockContext, requestAbortControllers);
 
-      // Should strip the slash and pass "help" to SDK
-      expect(mockQuery).toHaveBeenCalledWith({
-        prompt: "help",
-        options: expect.objectContaining({
-          permissionMode: "plan",
-        }),
-      });
+      const queryCall = getLatestQueryCall();
+      expect(await readPromptContent(queryCall.prompt)).toBe("help");
+      expect(queryCall.options.permissionMode).toBe("plan");
     });
 
     it("should handle regular messages with permissionMode", async () => {
@@ -338,12 +387,11 @@ describe("Chat Handler - Permission Mode Tests", () => {
 
       await handleChatRequest(mockContext, requestAbortControllers);
 
-      expect(mockQuery).toHaveBeenCalledWith({
-        prompt: "Regular message",
-        options: expect.objectContaining({
-          permissionMode: "acceptEdits",
-        }),
-      });
+      const queryCall = getLatestQueryCall();
+      expect(await readPromptContent(queryCall.prompt)).toBe(
+        "Regular message",
+      );
+      expect(queryCall.options.permissionMode).toBe("acceptEdits");
     });
   });
 
@@ -632,7 +680,7 @@ describe("Chat Handler - Permission Mode Tests", () => {
 
     await handleChatRequest(mockContext, requestAbortControllers);
 
-    const queryCall = mockQuery.mock.calls[0]?.[0];
-    expect(typeof queryCall?.options?.canUseTool).toBe("function");
+    const queryCall = getLatestQueryCall();
+    expect(typeof queryCall.options.canUseTool).toBe("function");
   });
 });

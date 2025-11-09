@@ -3,6 +3,7 @@ import type {
   ChatMessage,
   ThinkingMessage,
   SDKMessage,
+  SDKStreamEventMessage,
   TimestampedSDKMessage,
 } from "../types";
 import {
@@ -34,6 +35,7 @@ export interface ProcessingContext {
 
   // Current assistant message state (for streaming)
   currentAssistantMessage?: ChatMessage | null;
+  getCurrentAssistantMessage?: () => ChatMessage | null;
   setCurrentAssistantMessage?: (message: ChatMessage | null) => void;
 
   // Session handling
@@ -198,7 +200,12 @@ export class UnifiedMessageProcessor {
       return;
     }
 
-    let messageToUpdate = context.currentAssistantMessage;
+    const getAssistantMessage =
+      context.getCurrentAssistantMessage ??
+      (() => context.currentAssistantMessage ?? null);
+
+    let messageToUpdate = getAssistantMessage?.() ?? null;
+    let isNewMessage = false;
 
     if (!messageToUpdate) {
       messageToUpdate = {
@@ -207,8 +214,7 @@ export class UnifiedMessageProcessor {
         content: "",
         timestamp: options.timestamp || Date.now(),
       };
-      context.setCurrentAssistantMessage?.(messageToUpdate);
-      context.addMessage(messageToUpdate);
+      isNewMessage = true;
     }
 
     const updatedContent =
@@ -220,7 +226,12 @@ export class UnifiedMessageProcessor {
       content: updatedContent,
     };
     context.setCurrentAssistantMessage?.(updatedMessage);
-    context.updateLastMessage?.(updatedContent);
+
+    if (isNewMessage) {
+      context.addMessage(updatedMessage);
+    } else {
+      context.updateLastMessage?.(updatedContent);
+    }
   }
 
   /**
@@ -333,13 +344,19 @@ export class UnifiedMessageProcessor {
 
     let assistantContent = "";
     const thinkingMessages: ThinkingMessage[] = [];
+    const getAssistantMessage =
+      context.getCurrentAssistantMessage ??
+      (() => context.currentAssistantMessage ?? null);
 
     // Check if message.content exists and is an array
     if (message.message?.content && Array.isArray(message.message.content)) {
       for (const item of message.message.content) {
         if (item.type === "text") {
           if (options.isStreaming) {
-            this.handleAssistantText(item, context, options);
+            const existingAssistant = getAssistantMessage?.();
+            if (!existingAssistant) {
+              this.handleAssistantText(item, context, options);
+            }
           } else {
             assistantContent += (item as { text: string }).text;
           }
@@ -505,6 +522,28 @@ export class UnifiedMessageProcessor {
           (message as { type: string }).type,
         );
         return [];
+    }
+  }
+
+  /**
+   * Process streaming partial assistant events
+   */
+  public processStreamEvent(
+    message: SDKStreamEventMessage,
+    context: ProcessingContext,
+    options: ProcessingOptions = {},
+  ): void {
+    const timestamp = options.timestamp ?? Date.now();
+
+    if (message.event.type === "content_block_delta") {
+      const delta = message.event.delta;
+      if (delta?.type === "text_delta" && typeof delta.text === "string") {
+        this.handleAssistantText(
+          { text: delta.text },
+          context,
+          { ...options, isStreaming: true, timestamp },
+        );
+      }
     }
   }
 

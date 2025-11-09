@@ -1,8 +1,8 @@
+import type { PermissionResult } from "@anthropic-ai/claude-agent-sdk";
 import type {
-  PermissionResult,
+  PermissionRequestEvent,
   PermissionUpdate,
-} from "@anthropic-ai/claude-agent-sdk";
-import type { PermissionRequestEvent } from "../../shared/types.ts";
+} from "../../shared/types.ts";
 
 interface PermissionRequestInit {
   requestId: string;
