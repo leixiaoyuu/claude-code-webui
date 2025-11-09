@@ -118,3 +118,40 @@ export async function withTempDir<T>(
     }
   }
 }
+
+/**
+ * Ensure directory exists (creates recursively if needed)
+ */
+export async function ensureDir(path: string): Promise<void> {
+  await fs.mkdir(path, { recursive: true });
+}
+
+/**
+ * Recursively copy directory contents
+ */
+export async function copyDirectory(
+  source: string,
+  destination: string,
+): Promise<void> {
+  const sourceStats = await fs.stat(source);
+  if (!sourceStats.isDirectory()) {
+    throw new Error(`Source path is not a directory: ${source}`);
+  }
+
+  await ensureDir(destination);
+  const entries = await fs.readdir(source, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const srcPath = join(source, entry.name);
+    const destPath = join(destination, entry.name);
+
+    if (entry.isDirectory()) {
+      await copyDirectory(srcPath, destPath);
+    } else if (entry.isSymbolicLink()) {
+      const linkTarget = await fs.readlink(srcPath);
+      await fs.symlink(linkTarget, destPath);
+    } else {
+      await fs.copyFile(srcPath, destPath);
+    }
+  }
+}

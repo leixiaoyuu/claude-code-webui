@@ -4,6 +4,7 @@ import { handleChatRequest } from "./chat";
 import type { ChatRequest } from "../../shared/types";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { globalPermissionRequestManager } from "../permissions/manager";
+import * as autobaUtils from "../utils/autoba";
 
 vi.mock("@anthropic-ai/claude-agent-sdk", () => {
   class MockAbortError extends Error {
@@ -28,6 +29,20 @@ vi.mock("../utils/logger", () => ({
     },
   },
 }));
+
+vi.mock("../utils/autoba.ts", async () => {
+  const actual = await vi.importActual<typeof import("../utils/autoba.ts")>(
+    "../utils/autoba.ts",
+  );
+  return {
+    ...actual,
+    prepareAutobaWorkspaceFromTemplate: vi.fn(),
+  };
+});
+
+const prepareAutobaWorkspaceFromTemplateMock = vi.mocked(
+  autobaUtils.prepareAutobaWorkspaceFromTemplate,
+);
 
 const mockQuery = vi.mocked(query);
 
@@ -121,6 +136,10 @@ describe("Chat Handler - Permission Mode Tests", () => {
     } as any;
 
     vi.clearAllMocks();
+    prepareAutobaWorkspaceFromTemplateMock.mockReset();
+    prepareAutobaWorkspaceFromTemplateMock.mockResolvedValue(
+      "/autoba/root/workspaces/user-1/session-9",
+    );
   });
 
   afterEach(() => {
@@ -481,7 +500,14 @@ describe("Chat Handler - Permission Mode Tests", () => {
       await handleChatRequest(mockContext, requestAbortControllers);
 
       const queryCall = getLatestQueryCall();
-      expect(queryCall.options.cwd).toBe("/autoba/root/user-1/session-9");
+      expect(queryCall.options.cwd).toBe(
+        "/autoba/root/workspaces/user-1/session-9",
+      );
+      expect(prepareAutobaWorkspaceFromTemplateMock).toHaveBeenCalledWith(
+        "/autoba/root",
+        "user-1",
+        "session-9",
+      );
     });
 
     it("should reject AutoBA requests missing identifiers", async () => {
@@ -554,6 +580,34 @@ describe("Chat Handler - Permission Mode Tests", () => {
       const body = await response.json();
       expect(body).toEqual({
         error: "AutoBA 请求必须用于新的 Claude 会话",
+      });
+    });
+
+    it("should return error when workspace template fails to copy", async () => {
+      enableAutoBAQuery();
+
+      prepareAutobaWorkspaceFromTemplateMock.mockRejectedValueOnce(
+        new Error("template missing"),
+      );
+
+      const chatRequest: ChatRequest = {
+        message: "copy fail",
+        requestId: "autoba-5",
+        uid: "user-1",
+        autobaSessionId: "session-y",
+      };
+
+      mockContext.req.json = vi.fn().mockResolvedValue(chatRequest);
+
+      const response = await handleChatRequest(
+        mockContext,
+        requestAbortControllers,
+      );
+
+      expect(response.status).toBe(500);
+      const body = await response.json();
+      expect(body).toEqual({
+        error: "AutoBA 工作区初始化失败: template missing",
       });
     });
   });

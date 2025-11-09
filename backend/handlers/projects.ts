@@ -7,8 +7,9 @@ import { getHomeDir } from "../utils/os.ts";
 import type { ConfigContext } from "../middleware/config.ts";
 import { parseBooleanQueryParam } from "../utils/query.ts";
 import {
-  filterPathsByPrefixes,
+  matchesAutobaProject,
   normalizeConfiguredPrefixes,
+  listAutobaWorkspacePaths,
 } from "../utils/autoba.ts";
 
 /**
@@ -38,20 +39,51 @@ export async function handleProjectsRequest(c: Context<ConfigContext>) {
 
       if (claudeConfig.projects && typeof claudeConfig.projects === "object") {
         const projectPaths = Object.keys(claudeConfig.projects);
-        const pathsToProcess = filterAutoBA
-          ? filterPathsByPrefixes(projectPaths, autobaPrefixes)
-          : projectPaths;
 
         // Get encoded names for each project, only include projects with history
         const projects: ProjectInfo[] = [];
-        for (const path of pathsToProcess) {
+        const seenPaths = new Set<string>();
+        for (const path of projectPaths) {
           const encodedName = await getEncodedProjectName(path);
           // Only include projects that have history directories
-          if (encodedName) {
+          if (!encodedName) {
+            continue;
+          }
+
+          if (
+            filterAutoBA &&
+            !matchesAutobaProject(path, encodedName, autobaPrefixes)
+          ) {
+            continue;
+          }
+
+          projects.push({
+            path,
+            encodedName,
+          });
+          seenPaths.add(path);
+        }
+
+        if (filterAutoBA) {
+          const discoveredPaths = await collectAutobaWorkspacePaths(
+            autobaPrefixes,
+          );
+
+          for (const path of discoveredPaths) {
+            if (seenPaths.has(path)) {
+              continue;
+            }
+
+            const encodedName = await getEncodedProjectName(path);
+            if (!encodedName) {
+              continue;
+            }
+
             projects.push({
               path,
               encodedName,
             });
+            seenPaths.add(path);
           }
         }
 
@@ -73,4 +105,15 @@ export async function handleProjectsRequest(c: Context<ConfigContext>) {
     logger.api.error("Error reading projects: {error}", { error });
     return c.json({ error: "Failed to read projects" }, 500);
   }
+}
+
+async function collectAutobaWorkspacePaths(
+  prefixes: string[],
+): Promise<string[]> {
+  const results: string[] = [];
+  for (const prefix of prefixes) {
+    const paths = await listAutobaWorkspacePaths(prefix);
+    results.push(...paths);
+  }
+  return results;
 }

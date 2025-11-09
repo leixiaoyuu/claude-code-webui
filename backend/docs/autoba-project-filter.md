@@ -4,7 +4,7 @@
 
 ## 配置 AutoBA CWD 前缀
 
-AutoBA 的工作目录形如 `{autobaCwd前缀}/{uid}/{sessionId}/`。后端通过配置项维护若干前缀，只对这些路径进行 AutoBA 匹配。
+AutoBA 的工作目录形如 `{autobaCwd前缀}/workspaces/{uid}/{sessionId}/`。后端通过配置项维护若干前缀，只对这些路径进行 AutoBA 匹配。
 
 1. **CLI 参数（可重复传入）**
 
@@ -37,7 +37,8 @@ AutoBA 的工作目录形如 `{autobaCwd前缀}/{uid}/{sessionId}/`。后端通�
 - 请求体需额外包含：
   - `uid`：AutoBA 用户 ID；
   - `autobaSessionId`：AutoBA 侧的会话 ID（不同于 Claude CLI 的 `sessionId`）。
-- 后端将自动使用配置列表中的第一个前缀，拼接成 `prefix/uid/autobaSessionId` 作为 `cwd` 并忽略请求体里显式传入的 `workingDirectory`。
+- 后端会先将 `${prefix}/workspace_template` 目录完整拷贝到 `prefix/workspaces/uid/autobaSessionId`，然后把该路径作为最终 `cwd`（忽略请求体里的 `workingDirectory`）。
+- 拷贝失败（例如模板缺失、目标已存在）会返回 `500` 并停止会话创建。
 - 若前缀缺失或必须字段缺少，将返回 `400` 错误提示。
 
 ## 实现要点

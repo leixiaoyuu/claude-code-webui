@@ -20,8 +20,8 @@ import {
 } from "../permissions/manager.ts";
 import { parseBooleanQueryParam } from "../utils/query.ts";
 import {
-  buildAutobaWorkingDirectory,
   normalizeConfiguredPrefixes,
+  prepareAutobaWorkspaceFromTemplate,
 } from "../utils/autoba.ts";
 
 const DEFAULT_SETTING_SOURCES: SettingSource[] = ["project", "user"];
@@ -244,6 +244,10 @@ export async function handleChatRequest(
     chatRequest as unknown as Record<string, unknown>,
   );
 
+  const trimmedUid = chatRequest.uid?.trim() ?? "";
+  const trimmedAutobaSessionId = chatRequest.autobaSessionId?.trim() ?? "";
+  let autobaWorkingDirectory: string | undefined;
+
   if (isAutoBARequest) {
     if (chatRequest.sessionId) {
       return c.json({
@@ -251,7 +255,7 @@ export async function handleChatRequest(
       }, 400);
     }
 
-    if (!chatRequest.uid || !chatRequest.autobaSessionId) {
+    if (!trimmedUid || !trimmedAutobaSessionId) {
       return c.json({
         error: "AutoBA 请求需要提供 uid 与 autobaSessionId",
       }, 400);
@@ -261,6 +265,18 @@ export async function handleChatRequest(
       return c.json({
         error: "AutoBA 前缀未配置",
       }, 400);
+    }
+
+    try {
+      autobaWorkingDirectory = await prepareAutobaWorkspaceFromTemplate(
+        autobaPrefixes[0],
+        trimmedUid,
+        trimmedAutobaSessionId,
+      );
+    } catch (error) {
+      logger.chat.error("AutoBA 工作区准备失败: {error}", { error });
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: `AutoBA 工作区初始化失败: ${message}` }, 500);
     }
   }
 
@@ -276,12 +292,8 @@ export async function handleChatRequest(
         let resolvedWorkingDirectory =
           chatRequest.workingDirectory ?? defaultWorkingDirectory;
 
-        if (isAutoBARequest && chatRequest.uid && chatRequest.autobaSessionId) {
-          resolvedWorkingDirectory = buildAutobaWorkingDirectory(
-            autobaPrefixes[0],
-            chatRequest.uid,
-            chatRequest.autobaSessionId,
-          );
+        if (autobaWorkingDirectory) {
+          resolvedWorkingDirectory = autobaWorkingDirectory;
         }
 
         for await (const chunk of executeClaudeCommand(
