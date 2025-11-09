@@ -31,6 +31,15 @@ AutoBA 的工作目录形如 `{autobaCwd前缀}/{uid}/{sessionId}/`。后端通�
 
 查询参数支持 `isAutoBA=true` 或 `isAutoBA=1` 的布尔语义。
 
+### Chat 接口自动切换工作目录
+
+- `POST /api/chat?isAutoBA=true` 只能用于 **新会话**（请求体不得携带 Claude 的 `sessionId`）。
+- 请求体需额外包含：
+  - `uid`：AutoBA 用户 ID；
+  - `autobaSessionId`：AutoBA 侧的会话 ID（不同于 Claude CLI 的 `sessionId`）。
+- 后端将自动使用配置列表中的第一个前缀，拼接成 `prefix/uid/autobaSessionId` 作为 `cwd` 并忽略请求体里显式传入的 `workingDirectory`。
+- 若前缀缺失或必须字段缺少，将返回 `400` 错误提示。
+
 ## 实现要点
 
 - `cli/args.ts` 解析 CLI/环境变量并写入 `AppConfig.autobaCwdPrefixes`。

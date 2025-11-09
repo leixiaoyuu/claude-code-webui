@@ -79,6 +79,8 @@ export interface ChatRequest {
     | "plan"
     | "acceptEdits"
     | "bypassPermissions";
+  uid?: string;
+  autobaSessionId?: string;
 }
 
 export interface AbortRequest {

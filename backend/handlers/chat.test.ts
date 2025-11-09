@@ -101,11 +101,21 @@ describe("Chat Handler - Permission Mode Tests", () => {
     mockContext = {
       req: {
         json: vi.fn(),
+        query: vi.fn().mockReturnValue(null),
       },
+      json: vi
+        .fn()
+        .mockImplementation((data: unknown, status = 200) =>
+          new Response(JSON.stringify(data), {
+            status,
+            headers: { "Content-Type": "application/json" },
+          })
+        ),
       var: {
         config: {
           cliPath: "/path/to/claude-cli",
           defaultWorkingDirectory: undefined,
+          autobaCwdPrefixes: [],
         },
       },
     } as any;
@@ -425,6 +435,126 @@ describe("Chat Handler - Permission Mode Tests", () => {
 
       const queryCall = getLatestQueryCall();
       expect(queryCall.options).not.toHaveProperty("cwd");
+    });
+  });
+
+  describe("AutoBA working directory handling", () => {
+    beforeEach(() => {
+      mockContext.var.config.autobaCwdPrefixes = ["/autoba/root"];
+    });
+
+    function enableAutoBAQuery() {
+      mockContext.req.query = vi
+        .fn()
+        .mockImplementation((key: string) =>
+          key === "isAutoBA" ? "true" : null
+        );
+    }
+
+    it("should override cwd using AutoBA uid and session", async () => {
+      enableAutoBAQuery();
+
+      const chatRequest: ChatRequest = {
+        message: "AutoBA session",
+        requestId: "autoba-1",
+        uid: "user-1",
+        autobaSessionId: "session-9",
+      };
+
+      mockContext.req.json = vi.fn().mockResolvedValue(chatRequest);
+
+      mockQuery.mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          yield {
+            type: "assistant",
+            message: { content: [{ type: "text", text: "Response" }] },
+            session_id: "test-session",
+            parent_tool_use_id: null,
+          } as any;
+        },
+        interrupt: vi.fn(),
+        next: vi.fn(),
+        return: vi.fn(),
+        throw: vi.fn(),
+      } as any);
+
+      await handleChatRequest(mockContext, requestAbortControllers);
+
+      const queryCall = getLatestQueryCall();
+      expect(queryCall.options.cwd).toBe("/autoba/root/user-1/session-9");
+    });
+
+    it("should reject AutoBA requests missing identifiers", async () => {
+      enableAutoBAQuery();
+
+      const chatRequest: ChatRequest = {
+        message: "missing ids",
+        requestId: "autoba-2",
+        uid: "user-1",
+      };
+
+      mockContext.req.json = vi.fn().mockResolvedValue(chatRequest);
+
+      const response = await handleChatRequest(
+        mockContext,
+        requestAbortControllers,
+      );
+
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      expect(body).toEqual({
+        error: "AutoBA 请求需要提供 uid 与 autobaSessionId",
+      });
+    });
+
+    it("should reject AutoBA requests when prefixes are missing", async () => {
+      enableAutoBAQuery();
+      mockContext.var.config.autobaCwdPrefixes = [];
+
+      const chatRequest: ChatRequest = {
+        message: "no prefix",
+        requestId: "autoba-3",
+        uid: "user-1",
+        autobaSessionId: "session-x",
+      };
+
+      mockContext.req.json = vi.fn().mockResolvedValue(chatRequest);
+
+      const response = await handleChatRequest(
+        mockContext,
+        requestAbortControllers,
+      );
+
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      expect(body).toEqual({
+        error: "AutoBA 前缀未配置",
+      });
+    });
+
+    it("should reject AutoBA requests when sessionId is provided", async () => {
+      enableAutoBAQuery();
+
+      const chatRequest: ChatRequest = {
+        message: "has claude session",
+        requestId: "autoba-4",
+        sessionId: "claude-1",
+        uid: "user-1",
+        autobaSessionId: "session-z",
+      };
+
+      mockContext.req.json = vi.fn().mockResolvedValue(chatRequest);
+
+      const response = await handleChatRequest(
+        mockContext,
+        requestAbortControllers,
+      );
+
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      expect(body).toEqual({
+        error: "AutoBA 请求必须用于新的 Claude 会话",
+      });
     });
   });
 

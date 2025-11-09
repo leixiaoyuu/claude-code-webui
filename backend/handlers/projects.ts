@@ -5,6 +5,11 @@ import { logger } from "../utils/logger.ts";
 import { readTextFile } from "../utils/fs.ts";
 import { getHomeDir } from "../utils/os.ts";
 import type { ConfigContext } from "../middleware/config.ts";
+import { parseBooleanQueryParam } from "../utils/query.ts";
+import {
+  filterPathsByPrefixes,
+  normalizeConfiguredPrefixes,
+} from "../utils/autoba.ts";
 
 /**
  * Handles GET /api/projects requests
@@ -68,68 +73,4 @@ export async function handleProjectsRequest(c: Context<ConfigContext>) {
     logger.api.error("Error reading projects: {error}", { error });
     return c.json({ error: "Failed to read projects" }, 500);
   }
-}
-
-function parseBooleanQueryParam(value: string | null | undefined): boolean {
-  if (!value) {
-    return false;
-  }
-  const normalized = value.trim().toLowerCase();
-  return normalized === "true" || normalized === "1";
-}
-
-function normalizeConfiguredPrefixes(prefixes?: string[]): string[] {
-  if (!prefixes) {
-    return [];
-  }
-  return prefixes
-    .map((prefix) => prefix.trim())
-    .filter((prefix) => prefix.length > 0);
-}
-
-function filterPathsByPrefixes(paths: string[], prefixes: string[]): string[] {
-  if (prefixes.length === 0) {
-    return [];
-  }
-  return paths.filter((path) =>
-    prefixes.some((prefix) => pathMatchesPrefix(path, prefix))
-  );
-}
-
-function pathMatchesPrefix(path: string, prefix: string): boolean {
-  if (!prefix) {
-    return false;
-  }
-  const normalizedPath = replaceBackslashes(path);
-  const normalizedPrefix = replaceBackslashes(prefix);
-
-  if (normalizedPath === normalizedPrefix) {
-    return true;
-  }
-
-  const trimmedPath = trimTrailingSlash(normalizedPath);
-  const trimmedPrefix = trimTrailingSlash(normalizedPrefix);
-
-  if (!trimmedPrefix) {
-    return false;
-  }
-
-  if (trimmedPath === trimmedPrefix) {
-    return true;
-  }
-
-  const prefixWithSlash =
-    trimmedPrefix === "/" ? "/" : `${trimmedPrefix}/`;
-  return normalizedPath.startsWith(prefixWithSlash);
-}
-
-function replaceBackslashes(value: string): string {
-  return value.replace(/\\/g, "/");
-}
-
-function trimTrailingSlash(value: string): string {
-  if (value === "/") {
-    return value;
-  }
-  return value.replace(/\/+$/, "");
 }

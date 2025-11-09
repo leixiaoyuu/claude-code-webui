@@ -18,6 +18,11 @@ import {
   PermissionRequestManager,
   globalPermissionRequestManager,
 } from "../permissions/manager.ts";
+import { parseBooleanQueryParam } from "../utils/query.ts";
+import {
+  buildAutobaWorkingDirectory,
+  normalizeConfiguredPrefixes,
+} from "../utils/autoba.ts";
 
 const DEFAULT_SETTING_SOURCES: SettingSource[] = ["project", "user"];
 
@@ -227,12 +232,37 @@ export async function handleChatRequest(
     globalPermissionRequestManager,
 ) {
   const chatRequest: ChatRequest = await c.req.json();
-  const { cliPath, maxThinkingTokens, defaultWorkingDirectory } = c.var.config;
+  const config = c.var.config;
+  const { cliPath, maxThinkingTokens, defaultWorkingDirectory } = config;
+  const isAutoBARequest = parseBooleanQueryParam(
+    c.req.query("isAutoBA"),
+  );
+  const autobaPrefixes = normalizeConfiguredPrefixes(config.autobaCwdPrefixes);
 
   logger.chat.debug(
     "Received chat request {*}",
     chatRequest as unknown as Record<string, unknown>,
   );
+
+  if (isAutoBARequest) {
+    if (chatRequest.sessionId) {
+      return c.json({
+        error: "AutoBA 请求必须用于新的 Claude 会话",
+      }, 400);
+    }
+
+    if (!chatRequest.uid || !chatRequest.autobaSessionId) {
+      return c.json({
+        error: "AutoBA 请求需要提供 uid 与 autobaSessionId",
+      }, 400);
+    }
+
+    if (!autobaPrefixes.length) {
+      return c.json({
+        error: "AutoBA 前缀未配置",
+      }, 400);
+    }
+  }
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -243,8 +273,16 @@ export async function handleChatRequest(
       };
 
       try {
-        const resolvedWorkingDirectory =
+        let resolvedWorkingDirectory =
           chatRequest.workingDirectory ?? defaultWorkingDirectory;
+
+        if (isAutoBARequest && chatRequest.uid && chatRequest.autobaSessionId) {
+          resolvedWorkingDirectory = buildAutobaWorkingDirectory(
+            autobaPrefixes[0],
+            chatRequest.uid,
+            chatRequest.autobaSessionId,
+          );
+        }
 
         for await (const chunk of executeClaudeCommand(
           chatRequest.message,
