@@ -1,6 +1,7 @@
 import { Context } from "hono";
 import type { ProjectInfo, ProjectsResponse } from "../../shared/types.ts";
 import { getEncodedProjectName } from "../history/pathUtils.ts";
+import { getProjectTitle } from "../history/projectTitle.ts";
 import { logger } from "../utils/logger.ts";
 import { readTextFile } from "../utils/fs.ts";
 import { getHomeDir } from "../utils/os.ts";
@@ -32,6 +33,7 @@ export async function handleProjectsRequest(c: Context<ConfigContext>) {
     }
 
     const claudeConfigPath = `${homeDir}/.claude.json`;
+    const projectsRoot = `${homeDir}/.claude/projects`;
 
     try {
       const configContent = await readTextFile(claudeConfigPath);
@@ -57,9 +59,14 @@ export async function handleProjectsRequest(c: Context<ConfigContext>) {
             continue;
           }
 
+          const title = await getProjectTitle(
+            `${projectsRoot}/${encodedName}`,
+          );
+
           projects.push({
             path,
             encodedName,
+            ...(title ? { title } : {}),
           });
           seenPaths.add(path);
         }
@@ -79,9 +86,14 @@ export async function handleProjectsRequest(c: Context<ConfigContext>) {
               continue;
             }
 
+            const title = await getProjectTitle(
+              `${projectsRoot}/${encodedName}`,
+            );
+
             projects.push({
               path,
               encodedName,
+              ...(title ? { title } : {}),
             });
             seenPaths.add(path);
           }

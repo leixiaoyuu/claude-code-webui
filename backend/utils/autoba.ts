@@ -1,4 +1,11 @@
-import { copyDirectory, exists, readDir, stat } from "./fs.ts";
+import {
+  copyDirectory,
+  exists,
+  readDir,
+  readTextFile,
+  stat,
+  writeTextFile,
+} from "./fs.ts";
 
 function replaceBackslashes(value: string): string {
   return value.replace(/\\/g, "/");
@@ -20,6 +27,8 @@ function getWorkspaceRoot(prefix: string): string {
   const base = normalizePrefixBase(prefix);
   return base === "/" ? "/workspaces" : `${base}/workspaces`;
 }
+
+const AUTOBA_PREFIX_PLACEHOLDER = "%%__AUTOBA_CWD_PREFIX__%%";
 
 export function normalizeConfiguredPrefixes(prefixes?: string[]): string[] {
   if (!prefixes) {
@@ -100,6 +109,7 @@ export async function prepareAutobaWorkspaceFromTemplate(
   }
 
   await copyDirectory(templatePath, destinationPath);
+  await replaceAutobaPlaceholders(destinationPath, base);
   return destinationPath;
 }
 
@@ -140,6 +150,49 @@ export async function listAutobaWorkspacePaths(
   }
 
   return results;
+}
+
+async function replaceAutobaPlaceholders(
+  rootPath: string,
+  replacementPrefix: string,
+): Promise<void> {
+  for await (const entry of readDir(rootPath)) {
+    const entryPath = `${rootPath}/${entry.name}`;
+    if (entry.isDirectory) {
+      await replaceAutobaPlaceholders(entryPath, replacementPrefix);
+      continue;
+    }
+
+    if (!entry.isFile) {
+      continue;
+    }
+
+    await replacePlaceholderInFile(entryPath, replacementPrefix);
+  }
+}
+
+async function replacePlaceholderInFile(
+  filePath: string,
+  replacementPrefix: string,
+): Promise<void> {
+  let content: string;
+  try {
+    content = await readTextFile(filePath);
+  } catch {
+    return;
+  }
+
+  if (!content.includes(AUTOBA_PREFIX_PLACEHOLDER)) {
+    return;
+  }
+
+  const updated = content.split(AUTOBA_PREFIX_PLACEHOLDER).join(
+    replacementPrefix,
+  );
+
+  if (updated !== content) {
+    await writeTextFile(filePath, updated);
+  }
 }
 
 function encodePathForClaude(path: string): string {

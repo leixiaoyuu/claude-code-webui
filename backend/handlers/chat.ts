@@ -22,6 +22,7 @@ import { parseBooleanQueryParam } from "../utils/query.ts";
 import {
   normalizeConfiguredPrefixes,
   prepareAutobaWorkspaceFromTemplate,
+  buildAutobaWorkingDirectory,
 } from "../utils/autoba.ts";
 
 const DEFAULT_SETTING_SOURCES: SettingSource[] = ["project", "user"];
@@ -249,12 +250,6 @@ export async function handleChatRequest(
   let autobaWorkingDirectory: string | undefined;
 
   if (isAutoBARequest) {
-    if (chatRequest.sessionId) {
-      return c.json({
-        error: "AutoBA 请求必须用于新的 Claude 会话",
-      }, 400);
-    }
-
     if (!trimmedUid || !trimmedAutobaSessionId) {
       return c.json({
         error: "AutoBA 请求需要提供 uid 与 autobaSessionId",
@@ -267,12 +262,22 @@ export async function handleChatRequest(
       }, 400);
     }
 
+    const primaryPrefix = autobaPrefixes[0];
+
     try {
-      autobaWorkingDirectory = await prepareAutobaWorkspaceFromTemplate(
-        autobaPrefixes[0],
-        trimmedUid,
-        trimmedAutobaSessionId,
-      );
+      if (!chatRequest.sessionId) {
+        autobaWorkingDirectory = await prepareAutobaWorkspaceFromTemplate(
+          primaryPrefix,
+          trimmedUid,
+          trimmedAutobaSessionId,
+        );
+      } else {
+        autobaWorkingDirectory = buildAutobaWorkingDirectory(
+          primaryPrefix,
+          trimmedUid,
+          trimmedAutobaSessionId,
+        );
+      }
     } catch (error) {
       logger.chat.error("AutoBA 工作区准备失败: {error}", { error });
       const message = error instanceof Error ? error.message : String(error);

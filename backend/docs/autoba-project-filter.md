@@ -33,11 +33,12 @@ AutoBA 的工作目录形如 `{autobaCwd前缀}/workspaces/{uid}/{sessionId}/`�
 
 ### Chat 接口自动切换工作目录
 
-- `POST /api/chat?isAutoBA=true` 只能用于 **新会话**（请求体不得携带 Claude 的 `sessionId`）。
+- `POST /api/chat?isAutoBA=true` 只能在请求体中带上 AutoBA 元信息后使用：
 - 请求体需额外包含：
   - `uid`：AutoBA 用户 ID；
   - `autobaSessionId`：AutoBA 侧的会话 ID（不同于 Claude CLI 的 `sessionId`）。
-- 后端会先将 `${prefix}/workspace_template` 目录完整拷贝到 `prefix/workspaces/uid/autobaSessionId`，然后把该路径作为最终 `cwd`（忽略请求体里的 `workingDirectory`）。
+- 若请求体没有 `sessionId`（新会话），后端会先将 `${prefix}/workspace_template` 完整拷贝到 `prefix/workspaces/uid/autobaSessionId`，并替换文本文件中的 `%%__AUTOBA_CWD_PREFIX__%%` 占位符后，再把该路径作为最终 `cwd`。
+- 若请求体携带 `sessionId`（继续会话），也必须提供 `uid/autobaSessionId`，后端会直接定位到对应的 `prefix/workspaces/uid/autobaSessionId` 作为 `cwd`，而不会重复复制模板。
 - 拷贝失败（例如模板缺失、目标已存在）会返回 `500` 并停止会话创建。
 - 若前缀缺失或必须字段缺少，将返回 `400` 错误提示。
 

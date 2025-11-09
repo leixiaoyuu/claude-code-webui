@@ -558,12 +558,12 @@ describe("Chat Handler - Permission Mode Tests", () => {
       });
     });
 
-    it("should reject AutoBA requests when sessionId is provided", async () => {
+    it("should reuse AutoBA workspace when sessionId is provided", async () => {
       enableAutoBAQuery();
 
       const chatRequest: ChatRequest = {
-        message: "has claude session",
-        requestId: "autoba-4",
+        message: "resume session",
+        requestId: "autoba-resume",
         sessionId: "claude-1",
         uid: "user-1",
         autobaSessionId: "session-z",
@@ -571,16 +571,28 @@ describe("Chat Handler - Permission Mode Tests", () => {
 
       mockContext.req.json = vi.fn().mockResolvedValue(chatRequest);
 
-      const response = await handleChatRequest(
-        mockContext,
-        requestAbortControllers,
-      );
+      mockQuery.mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          yield {
+            type: "assistant",
+            message: { content: [{ type: "text", text: "Response" }] },
+            session_id: "test-session",
+            parent_tool_use_id: null,
+          } as any;
+        },
+        interrupt: vi.fn(),
+        next: vi.fn(),
+        return: vi.fn(),
+        throw: vi.fn(),
+      } as any);
 
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body).toEqual({
-        error: "AutoBA 请求必须用于新的 Claude 会话",
-      });
+      await handleChatRequest(mockContext, requestAbortControllers);
+
+      const queryCall = getLatestQueryCall();
+      expect(queryCall.options.cwd).toBe(
+        "/autoba/root/workspaces/user-1/session-z",
+      );
+      expect(prepareAutobaWorkspaceFromTemplateMock).not.toHaveBeenCalled();
     });
 
     it("should return error when workspace template fails to copy", async () => {

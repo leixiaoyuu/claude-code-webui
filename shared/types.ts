@@ -90,6 +90,7 @@ export interface AbortRequest {
 export interface ProjectInfo {
   path: string;
   encodedName: string;
+  title?: string;
 }
 
 export interface ProjectsResponse {
