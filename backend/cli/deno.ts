@@ -35,6 +35,7 @@ async function main(runtime: DenoRuntime) {
     debugMode: args.debug,
     staticPath,
     cliPath: cliPath,
+    maxThinkingTokens: args.maxThinkingTokens,
   });
 
   // Start server (only show this message when everything is ready)

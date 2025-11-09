@@ -31,7 +31,12 @@ interface ToolCache {
 export interface ProcessingContext {
   // Core message handling
   addMessage: (message: AllMessage) => void;
-  updateLastMessage?: (content: string) => void;
+  updateLastMessage?: (content: string, messageType?: AllMessage["type"]) => void;
+  updateThinkingMessage?: (
+    message: ThinkingMessage,
+    content: string,
+    timestamp?: number,
+  ) => ThinkingMessage;
 
   // Current assistant message state (for streaming)
   currentAssistantMessage?: ChatMessage | null;
@@ -82,12 +87,131 @@ function isToolUseError(content: string): boolean {
  */
 export class UnifiedMessageProcessor {
   private toolUseCache = new Map<string, ToolCache>();
+  private thinkingStreamCache = new Map<number, ThinkingMessage>();
+  private thinkingStreamOrder: number[] = [];
+  private thinkingStreamOrderSet = new Set<number>();
+  private lastThinkingMessage: ThinkingMessage | null = null;
 
   /**
    * Clear the tool use cache
    */
   public clearCache(): void {
     this.toolUseCache.clear();
+    this.resetThinkingStreams();
+  }
+
+  private resetThinkingStreams(): void {
+    this.thinkingStreamCache.clear();
+    this.thinkingStreamOrder = [];
+    this.thinkingStreamOrderSet.clear();
+    this.lastThinkingMessage = null;
+  }
+
+  private trackThinkingIndex(index: number): void {
+    if (this.thinkingStreamOrderSet.has(index)) {
+      return;
+    }
+
+    this.thinkingStreamOrderSet.add(index);
+    this.thinkingStreamOrder.push(index);
+  }
+
+  private updateThinkingMessageInstance(
+    message: ThinkingMessage,
+    content: string,
+    timestamp: number,
+    context: ProcessingContext,
+  ): ThinkingMessage {
+    let updatedMessage = message;
+
+    if (context.updateThinkingMessage) {
+      updatedMessage = context.updateThinkingMessage(
+        message,
+        content,
+        timestamp,
+      );
+    } else {
+      updatedMessage = {
+        ...message,
+        content,
+        timestamp,
+      };
+    }
+
+    context.updateLastMessage?.(content, "thinking");
+
+    return updatedMessage;
+  }
+
+  private handleThinkingDelta(
+    index: number,
+    deltaText: string,
+    context: ProcessingContext,
+    options: ProcessingOptions,
+  ): void {
+    if (!deltaText) {
+      return;
+    }
+
+    const timestamp = options.timestamp || Date.now();
+    const existingMessage = this.thinkingStreamCache.get(index);
+
+    if (!existingMessage) {
+      const thinkingMessage = createThinkingMessage(deltaText, timestamp);
+      this.thinkingStreamCache.set(index, thinkingMessage);
+      this.trackThinkingIndex(index);
+      context.addMessage(thinkingMessage);
+      this.lastThinkingMessage = thinkingMessage;
+      return;
+    }
+
+    const updatedContent = `${existingMessage.content}${deltaText}`;
+    const updatedMessage = this.updateThinkingMessageInstance(
+      existingMessage,
+      updatedContent,
+      timestamp,
+      context,
+    );
+    this.thinkingStreamCache.set(index, updatedMessage);
+    this.lastThinkingMessage = updatedMessage;
+  }
+
+  private consumeThinkingStream(
+    content: string,
+    context: ProcessingContext,
+    timestamp: number,
+  ): boolean {
+    if (this.thinkingStreamOrder.length) {
+      const index = this.thinkingStreamOrder.shift();
+      if (typeof index === "number") {
+        this.thinkingStreamOrderSet.delete(index);
+        const existingMessage = this.thinkingStreamCache.get(index);
+        if (existingMessage) {
+          const updatedMessage = this.updateThinkingMessageInstance(
+            existingMessage,
+            content,
+            timestamp,
+            context,
+          );
+          this.thinkingStreamCache.delete(index);
+          this.lastThinkingMessage = updatedMessage;
+          return true;
+        }
+      }
+    }
+
+    if (this.lastThinkingMessage) {
+      const updatedMessage = this.updateThinkingMessageInstance(
+        this.lastThinkingMessage,
+        content,
+        timestamp,
+        context,
+      );
+      this.lastThinkingMessage = updatedMessage;
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -363,6 +487,23 @@ export class UnifiedMessageProcessor {
         } else if (item.type === "tool_use") {
           this.handleToolUse(item, localContext, options);
         } else if (isThinkingContentItem(item)) {
+          if (
+            options.isStreaming &&
+            this.consumeThinkingStream(item.thinking, context, timestamp)
+          ) {
+            continue;
+          }
+
+          if (options.isStreaming && this.lastThinkingMessage) {
+            this.lastThinkingMessage = this.updateThinkingMessageInstance(
+              this.lastThinkingMessage,
+              item.thinking,
+              timestamp,
+              context,
+            );
+            continue;
+          }
+
           const thinkingMessage = createThinkingMessage(
             item.thinking,
             timestamp,
@@ -414,6 +555,8 @@ export class UnifiedMessageProcessor {
     const timestamp = options.timestamp || Date.now();
     const resultMessage = convertResultMessage(message, timestamp);
     context.addMessage(resultMessage);
+
+    this.resetThinkingStreams();
 
     // Clear current assistant message (streaming only)
     if (options.isStreaming) {
@@ -537,13 +680,35 @@ export class UnifiedMessageProcessor {
 
     if (message.event.type === "content_block_delta") {
       const delta = message.event.delta;
-      if (delta?.type === "text_delta" && typeof delta.text === "string") {
+      const contentIndex = message.event.index;
+
+      if (
+        delta?.type === "text_delta" &&
+        typeof delta.text === "string"
+      ) {
         this.handleAssistantText(
           { text: delta.text },
           context,
           { ...options, isStreaming: true, timestamp },
         );
+        return;
       }
+
+      if (
+        delta?.type === "thinking_delta" &&
+        typeof delta.thinking === "string" &&
+        typeof contentIndex === "number"
+      ) {
+        this.handleThinkingDelta(
+          contentIndex,
+          delta.thinking,
+          context,
+          { ...options, isStreaming: true, timestamp },
+        );
+        return;
+      }
+    } else if (message.event.type === "message_start") {
+      this.resetThinkingStreams();
     }
   }
 

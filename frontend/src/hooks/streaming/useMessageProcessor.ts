@@ -2,6 +2,7 @@ import type {
   AllMessage,
   ChatMessage,
   PermissionRequestEvent,
+  ThinkingMessage,
 } from "../../types";
 import { useMessageConverter } from "../useMessageConverter";
 
@@ -10,7 +11,12 @@ export interface StreamingContext {
   getCurrentAssistantMessage?: () => ChatMessage | null;
   setCurrentAssistantMessage: (msg: ChatMessage | null) => void;
   addMessage: (msg: AllMessage) => void;
-  updateLastMessage: (content: string) => void;
+  updateLastMessage: (content: string, messageType?: AllMessage["type"]) => void;
+  updateThinkingMessage?: (
+    message: ThinkingMessage,
+    content: string,
+    timestamp?: number,
+  ) => ThinkingMessage;
   onSessionId?: (sessionId: string) => void;
   shouldShowInitMessage?: () => boolean;
   onInitMessageShown?: () => void;

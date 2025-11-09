@@ -30,6 +30,7 @@ export function useStreamParser() {
         // Core message handling
         addMessage: context.addMessage,
         updateLastMessage: context.updateLastMessage,
+        updateThinkingMessage: context.updateThinkingMessage,
 
         // Current assistant message state
         currentAssistantMessage: context.currentAssistantMessage,

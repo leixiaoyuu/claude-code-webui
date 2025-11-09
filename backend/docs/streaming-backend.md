@@ -15,6 +15,15 @@
 3. **NDJSON 保持兼容**：`/api/chat` 仍返回 `application/x-ndjson`，但 `claude_json` 行现在可能包含 `stream_event`。
 4. **权限建议裁剪**：只透出 `allow/deny`，防止 SDK 自带的 `ask` 行为污染 shared 类型。
 
+## Thinking 推理流配置
+
+- Claude Agent SDK 只有在 `maxThinkingTokens > 0` 时才会推送 `thinking_delta`；否则推理阶段直接被跳过，前端无法展示。
+- 现在可通过 CLI 或环境变量配置：
+  - 命令行：`--max-thinking-tokens 2048`
+  - 环境变量：`MAX_THINKING_TOKENS=2048`
+- 后端会把该值透传给 `query()`，确保 `UnifiedMessageProcessor` 能收到推理增量并实时更新 UI。
+- 设置为 `0` 或未设置则等同关闭推理输出，可根据成本需求自由切换。
+
 ## 关键实现片段
 
 ### 1. 流式输入 + Partial 输出

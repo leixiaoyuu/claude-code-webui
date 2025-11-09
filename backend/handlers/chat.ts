@@ -74,6 +74,7 @@ function createStreamingPrompt(message: string): AsyncIterable<SDKUserMessage> {
  * @param requestId - Unique request identifier for abort functionality
  * @param requestAbortControllers - Shared map of abort controllers
  * @param cliPath - Path to actual CLI script (detected by validateClaudeCli)
+ * @param maxThinkingTokens - Optional maximum thinking tokens for reasoning output
  * @param sessionId - Optional session ID for conversation continuity
  * @param allowedTools - Optional array of allowed tool names
  * @param workingDirectory - Optional working directory for Claude execution
@@ -85,6 +86,7 @@ async function* executeClaudeCommand(
   requestId: string,
   requestAbortControllers: Map<string, AbortController>,
   cliPath: string,
+  maxThinkingTokens?: number,
   sessionId?: string,
   allowedTools?: string[],
   workingDirectory?: string,
@@ -170,6 +172,9 @@ async function* executeClaudeCommand(
         settingSources: DEFAULT_SETTING_SOURCES,
         permissionMode: effectivePermissionMode,
         includePartialMessages: true,
+        ...(typeof maxThinkingTokens === "number"
+          ? { maxThinkingTokens }
+          : {}),
         ...(canUseTool ? { canUseTool } : {}),
       },
     })) {
@@ -222,7 +227,7 @@ export async function handleChatRequest(
     globalPermissionRequestManager,
 ) {
   const chatRequest: ChatRequest = await c.req.json();
-  const { cliPath } = c.var.config;
+  const { cliPath, maxThinkingTokens } = c.var.config;
 
   logger.chat.debug(
     "Received chat request {*}",
@@ -243,6 +248,7 @@ export async function handleChatRequest(
           chatRequest.requestId,
           requestAbortControllers,
           cliPath, // Use detected CLI path from validateClaudeCli
+          maxThinkingTokens,
           chatRequest.sessionId,
           chatRequest.allowedTools,
           chatRequest.workingDirectory,

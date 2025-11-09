@@ -106,6 +106,7 @@ export function ChatPage() {
     generateRequestId,
     resetRequestState,
     startRequest,
+    updateThinkingMessage,
   } = useChatState({
     initialMessages: historyMessages,
     initialSessionId: loadedSessionId || undefined,
@@ -226,6 +227,7 @@ export function ChatPage() {
           setCurrentAssistantMessage: setCurrentAssistantMessageWithRef,
           addMessage,
           updateLastMessage,
+          updateThinkingMessage,
           onSessionId: setCurrentSessionId,
           shouldShowInitMessage: () => !hasShownInitMessage,
           onInitMessageShown: () => setHasShownInitMessage(true),

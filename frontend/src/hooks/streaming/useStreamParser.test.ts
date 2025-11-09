@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useStreamParser } from "./useStreamParser";
 import type { StreamingContext } from "./useMessageProcessor";
-import type { SDKMessage, ChatMessage } from "../../types";
+import type { SDKMessage, ChatMessage, ThinkingMessage } from "../../types";
 import { generateId } from "../../utils/id";
 
 // Mock dependencies
@@ -18,6 +18,17 @@ describe("useStreamParser", () => {
       setCurrentAssistantMessage: vi.fn(),
       getCurrentAssistantMessage: vi.fn(),
       onSessionId: vi.fn(),
+      updateThinkingMessage: vi.fn(
+        (
+          message: ThinkingMessage,
+          content: string,
+          timestamp?: number,
+        ) => ({
+          ...message,
+          content,
+          timestamp: timestamp ?? message.timestamp,
+        }),
+      ),
       hasReceivedInit: false,
       setHasReceivedInit: vi.fn(),
       shouldShowInitMessage: vi.fn(() => true),
@@ -386,6 +397,86 @@ describe("useStreamParser", () => {
         initialAddCount,
       );
       expect(mockContext.updateLastMessage).toHaveBeenCalledTimes(0);
+    });
+
+    it("should stream thinking deltas and update the same message", () => {
+      const { result } = renderHook(() => useStreamParser());
+
+      const thinkingStart = {
+        type: "stream_event" as const,
+        session_id: "session",
+        uuid: generateId(),
+        parent_tool_use_id: null,
+        event: {
+          type: "content_block_delta",
+          index: 0,
+          delta: {
+            type: "thinking_delta",
+            thinking: "Step 1",
+          },
+        },
+      };
+
+      result.current.processStreamLine(
+        JSON.stringify({ type: "claude_json", data: thinkingStart }),
+        mockContext,
+      );
+
+      expect(mockContext.addMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "thinking",
+          content: "Step 1",
+        }),
+      );
+
+      const thinkingUpdate = {
+        ...thinkingStart,
+        event: {
+          type: "content_block_delta",
+          index: 0,
+          delta: {
+            type: "thinking_delta",
+            thinking: " -> Step 2",
+          },
+        },
+      };
+
+      result.current.processStreamLine(
+        JSON.stringify({ type: "claude_json", data: thinkingUpdate }),
+        mockContext,
+      );
+
+      expect(mockContext.updateThinkingMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "thinking" }),
+        "Step 1 -> Step 2",
+        expect.any(Number),
+      );
+
+      const priorCalls = (mockContext.addMessage as any).mock.calls.length;
+
+      const assistantMessage: Extract<SDKMessage, { type: "assistant" }> = {
+        type: "assistant",
+        session_id: "session",
+        uuid: generateId(),
+        parent_tool_use_id: null,
+        message: {
+          content: [
+            {
+              type: "thinking",
+              thinking: "Step 1 -> Step 2",
+            },
+          ],
+        },
+      };
+
+      result.current.processStreamLine(
+        JSON.stringify({ type: "claude_json", data: assistantMessage }),
+        mockContext,
+      );
+
+      expect((mockContext.addMessage as any).mock.calls.length).toBe(
+        priorCalls,
+      );
     });
   });
 

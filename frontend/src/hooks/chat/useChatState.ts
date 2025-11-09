@@ -1,5 +1,9 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import type { AllMessage, ChatMessage } from "../../types";
+import type {
+  AllMessage,
+  ChatMessage,
+  ThinkingMessage,
+} from "../../types";
 import { generateId } from "../../utils/id";
 
 interface ChatStateOptions {
@@ -46,15 +50,51 @@ export function useChatState(options: ChatStateOptions = {}) {
     setMessages((prev) => [...prev, msg]);
   }, []);
 
-  const updateLastMessage = useCallback((content: string) => {
-    setMessages((prev) =>
-      prev.map((msg, index) =>
-        index === prev.length - 1 && msg.type === "chat"
-          ? { ...msg, content }
-          : msg,
-      ),
-    );
-  }, []);
+  const updateLastMessage = useCallback(
+    (content: string, messageType: AllMessage["type"] = "chat") => {
+      setMessages((prev) =>
+        prev.map((msg, index) =>
+          index === prev.length - 1 && msg.type === messageType
+            ? { ...msg, content }
+            : msg,
+        ),
+      );
+    },
+    [],
+  );
+
+  const updateThinkingMessage = useCallback(
+    (target: ThinkingMessage, content: string, timestamp = Date.now()) => {
+      let updatedMessage: ThinkingMessage = target;
+      let found = false;
+
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg === target && msg.type === "thinking") {
+            found = true;
+            updatedMessage = {
+              ...msg,
+              content,
+              timestamp,
+            } as ThinkingMessage;
+            return updatedMessage;
+          }
+
+          return msg;
+        }),
+      );
+
+      if (!found) {
+        // Message hasn't been inserted into state yet; mutate the pending object
+        target.content = content;
+        target.timestamp = timestamp;
+        updatedMessage = target;
+      }
+
+      return updatedMessage;
+    },
+    [],
+  );
 
   const clearInput = useCallback(() => {
     setInput("");
@@ -106,5 +146,6 @@ export function useChatState(options: ChatStateOptions = {}) {
     generateRequestId,
     resetRequestState,
     startRequest,
+    updateThinkingMessage,
   };
 }
