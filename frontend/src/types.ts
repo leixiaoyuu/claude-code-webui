@@ -14,6 +14,18 @@ export interface ChatMessage {
   timestamp: number;
 }
 
+export interface SubagentMessage {
+  type: "subagent";
+  variant: "request" | "response";
+  toolUseId: string;
+  toolName: string;
+  content: string;
+  timestamp: number;
+  subagentName?: string;
+  taskDescription?: string;
+  model?: string;
+}
+
 // Error message for streaming errors
 export type ErrorMessage = {
   type: "error";
@@ -151,6 +163,7 @@ export type TimestampedSDKMessage =
 
 export type AllMessage =
   | ChatMessage
+  | SubagentMessage
   | SystemMessage
   | ToolMessage
   | ToolResultMessage
@@ -163,6 +176,12 @@ export type ClaudeSDKMessage = SDKMessage | SDKStreamEventMessage;
 // Type guard functions
 export function isChatMessage(message: AllMessage): message is ChatMessage {
   return message.type === "chat";
+}
+
+export function isSubagentMessage(
+  message: AllMessage,
+): message is SubagentMessage {
+  return message.type === "subagent";
 }
 
 export function isSystemMessage(message: AllMessage): message is SystemMessage {

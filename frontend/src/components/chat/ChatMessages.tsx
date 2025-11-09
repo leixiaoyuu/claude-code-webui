@@ -8,9 +8,11 @@ import {
   isPlanMessage,
   isThinkingMessage,
   isTodoMessage,
+  isSubagentMessage,
 } from "../../types";
 import {
   ChatMessageComponent,
+  SubagentMessageComponent,
   SystemMessageComponent,
   ToolMessageComponent,
   ToolResultMessageComponent,
@@ -70,6 +72,8 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
       return <ThinkingMessageComponent key={key} message={message} />;
     } else if (isTodoMessage(message)) {
       return <TodoMessageComponent key={key} message={message} />;
+    } else if (isSubagentMessage(message)) {
+      return <SubagentMessageComponent key={key} message={message} />;
     } else if (isChatMessage(message)) {
       return <ChatMessageComponent key={key} message={message} />;
     }

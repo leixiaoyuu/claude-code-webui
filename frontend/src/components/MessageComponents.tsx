@@ -1,5 +1,6 @@
 import type {
   ChatMessage,
+  SubagentMessage,
   SystemMessage,
   ToolMessage,
   ToolResultMessage,
@@ -69,6 +70,67 @@ export function ChatMessageComponent({ message }: ChatMessageComponentProps) {
       <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed">
         {message.content}
       </pre>
+    </MessageContainer>
+  );
+}
+
+interface SubagentMessageComponentProps {
+  message: SubagentMessage;
+}
+
+export function SubagentMessageComponent({
+  message,
+}: SubagentMessageComponentProps) {
+  const directionLabel =
+    message.variant === "response" ? "Subagent → Claude" : "Claude → Subagent";
+
+  return (
+    <MessageContainer
+      alignment="left"
+      colorScheme="bg-cyan-50/90 dark:bg-cyan-900/25 border border-cyan-200/70 dark:border-cyan-800/60 text-cyan-900 dark:text-cyan-50 shadow-[0px_10px_30px_rgba(6,182,212,0.15)]"
+    >
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="flex items-center gap-2 text-cyan-700 dark:text-cyan-200 font-semibold text-xs tracking-wide">
+          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-cyan-500 text-white text-base shadow-sm">
+            ✳︎
+          </span>
+          <span>
+            {message.subagentName
+              ? `Subagent · ${message.subagentName}`
+              : "Subagent Call"}
+          </span>
+          <span className="px-2 py-0.5 rounded-full bg-white/70 dark:bg-cyan-800/80 text-[11px] font-semibold text-cyan-600 dark:text-cyan-200">
+            {directionLabel}
+          </span>
+        </div>
+        <TimestampComponent
+          timestamp={message.timestamp}
+          className="text-xs text-cyan-600 dark:text-cyan-100 opacity-80"
+        />
+      </div>
+      {message.taskDescription && (
+        <p className="text-xs text-cyan-600 dark:text-cyan-200 mb-2">
+          {message.taskDescription}
+        </p>
+      )}
+      <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed text-cyan-900 dark:text-cyan-50">
+        {message.content}
+      </pre>
+      <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-cyan-700 dark:text-cyan-200">
+        <span className="px-2 py-0.5 rounded-full bg-white/80 dark:bg-cyan-800/70 border border-white/60 dark:border-cyan-700/70">
+          {message.toolName}
+        </span>
+        {message.model && (
+          <span className="px-2 py-0.5 rounded-full bg-white/80 dark:bg-cyan-800/70 border border-white/60 dark:border-cyan-700/70">
+            Model · {message.model}
+          </span>
+        )}
+        {message.subagentName && (
+          <span className="px-2 py-0.5 rounded-full bg-white/80 dark:bg-cyan-800/70 border border-white/60 dark:border-cyan-700/70">
+            Agent ID · {message.subagentName}
+          </span>
+        )}
+      </div>
     </MessageContainer>
   );
 }

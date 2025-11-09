@@ -36,6 +36,8 @@ async function main(runtime: DenoRuntime) {
     staticPath,
     cliPath: cliPath,
     maxThinkingTokens: args.maxThinkingTokens,
+    defaultWorkingDirectory: args.defaultWorkingDirectory,
+    autobaCwdPrefixes: args.autobaCwdPrefixes,
   });
 
   // Start server (only show this message when everything is ready)

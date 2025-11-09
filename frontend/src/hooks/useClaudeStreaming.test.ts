@@ -309,6 +309,84 @@ describe("useClaudeStreaming", () => {
     );
   });
 
+  it("creates a styled subagent message when Task tool delegates work", () => {
+    const { result } = renderHook(() => useClaudeStreaming());
+
+    const mockContext = {
+      currentAssistantMessage: null,
+      setCurrentAssistantMessage: vi.fn(),
+      addMessage: vi.fn(),
+      updateLastMessage: vi.fn(),
+    };
+
+    const assistantMessage: SDKMessage = {
+      type: "assistant",
+      message: {
+        id: "msg_task",
+        type: "message",
+        role: "assistant",
+        content: [
+          {
+            type: "tool_use",
+            id: "tool_task_1",
+            name: "Task",
+            input: {
+              description: "查询深圳天气",
+              subagent_type: "weather-helper",
+              model: "sonnet",
+            },
+          },
+        ],
+        model: "claude-3-sonnet",
+        stop_reason: "tool_use",
+        stop_sequence: null,
+        usage: { input_tokens: 10, output_tokens: 5 },
+      },
+      parent_tool_use_id: null,
+      session_id: "test-session-123",
+      uuid: generateId(),
+    };
+
+    const assistantLine = JSON.stringify({
+      type: "claude_json",
+      data: assistantMessage,
+    });
+
+    result.current.processStreamLine(assistantLine, mockContext);
+
+    const userMessage: SDKMessage = {
+      type: "user",
+      message: {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "请告诉我深圳今天的天气。",
+          },
+        ],
+      },
+      parent_tool_use_id: "tool_task_1",
+      session_id: "test-session-123",
+      uuid: generateId(),
+    };
+
+    const userLine = JSON.stringify({
+      type: "claude_json",
+      data: userMessage,
+    });
+
+    result.current.processStreamLine(userLine, mockContext);
+
+    expect(mockContext.addMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "subagent",
+        subagentName: "weather-helper",
+        taskDescription: "查询深圳天气",
+        content: "请告诉我深圳今天的天气。",
+      }),
+    );
+  });
+
   it("handles tool_use messages with different argument types", () => {
     const { result } = renderHook(() => useClaudeStreaming());
 

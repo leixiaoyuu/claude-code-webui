@@ -227,7 +227,7 @@ export async function handleChatRequest(
     globalPermissionRequestManager,
 ) {
   const chatRequest: ChatRequest = await c.req.json();
-  const { cliPath, maxThinkingTokens } = c.var.config;
+  const { cliPath, maxThinkingTokens, defaultWorkingDirectory } = c.var.config;
 
   logger.chat.debug(
     "Received chat request {*}",
@@ -243,6 +243,9 @@ export async function handleChatRequest(
       };
 
       try {
+        const resolvedWorkingDirectory =
+          chatRequest.workingDirectory ?? defaultWorkingDirectory;
+
         for await (const chunk of executeClaudeCommand(
           chatRequest.message,
           chatRequest.requestId,
@@ -251,7 +254,7 @@ export async function handleChatRequest(
           maxThinkingTokens,
           chatRequest.sessionId,
           chatRequest.allowedTools,
-          chatRequest.workingDirectory,
+          resolvedWorkingDirectory,
           chatRequest.permissionMode,
           permissionRequestManager,
           sendChunk,

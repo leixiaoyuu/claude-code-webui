@@ -27,6 +27,8 @@ export interface AppConfig {
   staticPath: string;
   cliPath: string; // Actual CLI script path detected by validateClaudeCli
   maxThinkingTokens?: number;
+  defaultWorkingDirectory?: string;
+  autobaCwdPrefixes?: string[];
 }
 
 export function createApp(
@@ -57,6 +59,8 @@ export function createApp(
       runtime,
       cliPath: config.cliPath,
       maxThinkingTokens: config.maxThinkingTokens,
+      defaultWorkingDirectory: config.defaultWorkingDirectory,
+      autobaCwdPrefixes: config.autobaCwdPrefixes,
     }),
   );
 

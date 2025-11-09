@@ -4,6 +4,7 @@ import { getEncodedProjectName } from "../history/pathUtils.ts";
 import { logger } from "../utils/logger.ts";
 import { readTextFile } from "../utils/fs.ts";
 import { getHomeDir } from "../utils/os.ts";
+import type { ConfigContext } from "../middleware/config.ts";
 
 /**
  * Handles GET /api/projects requests
@@ -11,8 +12,14 @@ import { getHomeDir } from "../utils/os.ts";
  * @param c - Hono context object
  * @returns JSON response with projects array
  */
-export async function handleProjectsRequest(c: Context) {
+export async function handleProjectsRequest(c: Context<ConfigContext>) {
   try {
+    const filterAutoBA = parseBooleanQueryParam(c.req.query("isAutoBA"));
+    const configFromContext = c.get("config");
+    const autobaPrefixes = normalizeConfiguredPrefixes(
+      configFromContext.autobaCwdPrefixes,
+    );
+
     const homeDir = getHomeDir();
     if (!homeDir) {
       return c.json({ error: "Home directory not found" }, 500);
@@ -22,14 +29,17 @@ export async function handleProjectsRequest(c: Context) {
 
     try {
       const configContent = await readTextFile(claudeConfigPath);
-      const config = JSON.parse(configContent);
+      const claudeConfig = JSON.parse(configContent);
 
-      if (config.projects && typeof config.projects === "object") {
-        const projectPaths = Object.keys(config.projects);
+      if (claudeConfig.projects && typeof claudeConfig.projects === "object") {
+        const projectPaths = Object.keys(claudeConfig.projects);
+        const pathsToProcess = filterAutoBA
+          ? filterPathsByPrefixes(projectPaths, autobaPrefixes)
+          : projectPaths;
 
         // Get encoded names for each project, only include projects with history
         const projects: ProjectInfo[] = [];
-        for (const path of projectPaths) {
+        for (const path of pathsToProcess) {
           const encodedName = await getEncodedProjectName(path);
           // Only include projects that have history directories
           if (encodedName) {
@@ -58,4 +68,68 @@ export async function handleProjectsRequest(c: Context) {
     logger.api.error("Error reading projects: {error}", { error });
     return c.json({ error: "Failed to read projects" }, 500);
   }
+}
+
+function parseBooleanQueryParam(value: string | null | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized === "true" || normalized === "1";
+}
+
+function normalizeConfiguredPrefixes(prefixes?: string[]): string[] {
+  if (!prefixes) {
+    return [];
+  }
+  return prefixes
+    .map((prefix) => prefix.trim())
+    .filter((prefix) => prefix.length > 0);
+}
+
+function filterPathsByPrefixes(paths: string[], prefixes: string[]): string[] {
+  if (prefixes.length === 0) {
+    return [];
+  }
+  return paths.filter((path) =>
+    prefixes.some((prefix) => pathMatchesPrefix(path, prefix))
+  );
+}
+
+function pathMatchesPrefix(path: string, prefix: string): boolean {
+  if (!prefix) {
+    return false;
+  }
+  const normalizedPath = replaceBackslashes(path);
+  const normalizedPrefix = replaceBackslashes(prefix);
+
+  if (normalizedPath === normalizedPrefix) {
+    return true;
+  }
+
+  const trimmedPath = trimTrailingSlash(normalizedPath);
+  const trimmedPrefix = trimTrailingSlash(normalizedPrefix);
+
+  if (!trimmedPrefix) {
+    return false;
+  }
+
+  if (trimmedPath === trimmedPrefix) {
+    return true;
+  }
+
+  const prefixWithSlash =
+    trimmedPrefix === "/" ? "/" : `${trimmedPrefix}/`;
+  return normalizedPath.startsWith(prefixWithSlash);
+}
+
+function replaceBackslashes(value: string): string {
+  return value.replace(/\\/g, "/");
+}
+
+function trimTrailingSlash(value: string): string {
+  if (value === "/") {
+    return value;
+  }
+  return value.replace(/\/+$/, "");
 }

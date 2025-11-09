@@ -1,6 +1,7 @@
 import type {
   AllMessage,
   ChatMessage,
+  SubagentMessage,
   ThinkingMessage,
   SDKMessage,
   SDKStreamEventMessage,
@@ -23,6 +24,12 @@ import { extractToolInfo, generateToolPatterns } from "./toolUtils";
 interface ToolCache {
   name: string;
   input: Record<string, unknown>;
+}
+
+function getString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0
+    ? value
+    : undefined;
 }
 
 /**
@@ -230,6 +237,37 @@ export class UnifiedMessageProcessor {
    */
   private getCachedToolInfo(id: string): ToolCache | undefined {
     return this.toolUseCache.get(id);
+  }
+
+  /**
+   * Create a dedicated subagent message for Task tool delegations
+   */
+  private createSubagentTaskMessage(
+    content: string,
+    parentToolUseId: string | null,
+    timestamp: number,
+    toolInfo?: ToolCache,
+    role?: string,
+  ): SubagentMessage | null {
+    if (!parentToolUseId || !toolInfo || toolInfo.name !== "Task") {
+      return null;
+    }
+
+    const description = getString(toolInfo.input["description"]);
+    const subagentName = getString(toolInfo.input["subagent_type"]);
+    const model = getString(toolInfo.input["model"]);
+
+    return {
+      type: "subagent",
+      variant: role === "assistant" ? "response" : "request",
+      toolUseId: parentToolUseId,
+      toolName: toolInfo.name,
+      content,
+      timestamp,
+      taskDescription: description,
+      subagentName,
+      model,
+    } satisfies SubagentMessage;
   }
 
   /**
@@ -574,6 +612,12 @@ export class UnifiedMessageProcessor {
   ): AllMessage[] {
     const timestamp = options.timestamp || Date.now();
     const messages: AllMessage[] = [];
+    const parentToolUseId =
+      "parent_tool_use_id" in message ? message.parent_tool_use_id : null;
+    const cachedToolInfo = parentToolUseId
+      ? this.getCachedToolInfo(parentToolUseId)
+      : undefined;
+    const messageRole = message.message.role;
 
     // For batch processing, collect messages to return
     // For streaming, messages are added directly via context
@@ -599,25 +643,48 @@ export class UnifiedMessageProcessor {
             toolUseResult,
           );
         } else if (contentItem.type === "text") {
-          // Regular text content
-          const userMessage: ChatMessage = {
-            type: "chat",
-            role: "user",
-            content: (contentItem as { text: string }).text,
+          const textContent = (contentItem as { text: string }).text;
+          const delegatedMessage = this.createSubagentTaskMessage(
+            textContent,
+            parentToolUseId,
             timestamp,
-          };
-          localContext.addMessage(userMessage);
+            cachedToolInfo,
+            messageRole,
+          );
+
+          if (delegatedMessage) {
+            localContext.addMessage(delegatedMessage);
+          } else {
+            const userMessage: ChatMessage = {
+              type: "chat",
+              role: "user",
+              content: textContent,
+              timestamp,
+            };
+            localContext.addMessage(userMessage);
+          }
         }
       }
     } else if (typeof messageContent === "string") {
-      // Simple string content
-      const userMessage: ChatMessage = {
-        type: "chat",
-        role: "user",
-        content: messageContent,
+      const delegatedMessage = this.createSubagentTaskMessage(
+        messageContent,
+        parentToolUseId,
         timestamp,
-      };
-      localContext.addMessage(userMessage);
+        cachedToolInfo,
+        messageRole,
+      );
+
+      if (delegatedMessage) {
+        localContext.addMessage(delegatedMessage);
+      } else {
+        const userMessage: ChatMessage = {
+          type: "chat",
+          role: "user",
+          content: messageContent,
+          timestamp,
+        };
+        localContext.addMessage(userMessage);
+      }
     }
 
     return messages;

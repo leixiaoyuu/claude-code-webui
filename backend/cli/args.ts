@@ -14,6 +14,8 @@ export interface ParsedArgs {
   host: string;
   claudePath?: string;
   maxThinkingTokens?: number;
+  defaultWorkingDirectory?: string;
+  autobaCwdPrefixes?: string[];
 }
 
 function parsePositiveInteger(value: string, label: string): number {
@@ -22,6 +24,53 @@ function parsePositiveInteger(value: string, label: string): number {
     throw new Error(`Invalid ${label}: ${value}`);
   }
   return parsed;
+}
+
+function collectAutobaPrefixes(value: string, previous?: string[]): string[] {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return previous ?? [];
+  }
+  return previous ? [...previous, trimmed] : [trimmed];
+}
+
+function normalizeAutobaPrefixes(prefixes?: string[]): string[] | undefined {
+  if (!prefixes || prefixes.length === 0) {
+    return undefined;
+  }
+  const normalized = prefixes
+    .map((prefix) => prefix.trim())
+    .filter((prefix) => prefix.length > 0);
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function parseAutobaPrefixEnv(value?: string): string[] | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      const fromJson = parsed
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+      return fromJson.length > 0 ? fromJson : undefined;
+    }
+  } catch {
+    // Ignore JSON parse errors and fall back to delimiter parsing
+  }
+
+  const fallback = trimmed
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  return fallback.length > 0 ? fallback : undefined;
 }
 
 export function parseCliArgs(): ParsedArgs {
@@ -62,12 +111,25 @@ export function parseCliArgs(): ParsedArgs {
       "--max-thinking-tokens <number>",
       "Maximum tokens Claude can spend on thinking (enables reasoning deltas)",
       (value) => parsePositiveInteger(value, "max thinking tokens"),
+    )
+    .option(
+      "--default-cwd <path>",
+      "Default working directory when chat requests omit workingDirectory",
+    )
+    .option(
+      "--autoba-cwd-prefix <path>",
+      "AutoBA project working directory prefix (repeatable)",
+      collectAutobaPrefixes,
     );
 
   // Parse arguments - Commander.js v14 handles this automatically
   program.parse(getArgs(), { from: "user" });
   const options = program.opts<
-    ParsedArgs & { maxThinkingTokens?: number }
+    ParsedArgs & {
+      maxThinkingTokens?: number;
+      defaultCwd?: string;
+      autobaCwdPrefix?: string[];
+    }
   >();
 
   // Handle DEBUG environment variable manually
@@ -80,6 +142,12 @@ export function parseCliArgs(): ParsedArgs {
       ? parsePositiveInteger(thinkingEnv, "MAX_THINKING_TOKENS")
       : undefined;
 
+  const defaultCwdEnv = getEnv("DEFAULT_CWD");
+  const envAutobaPrefixes = parseAutobaPrefixEnv(
+    getEnv("AUTOBA_CWD_PREFIXES"),
+  );
+  const cliAutobaPrefixes = normalizeAutobaPrefixes(options.autobaCwdPrefix);
+
   return {
     debug: options.debug || debugFromEnv,
     port: options.port,
@@ -89,5 +157,11 @@ export function parseCliArgs(): ParsedArgs {
       options.maxThinkingTokens !== undefined
         ? options.maxThinkingTokens
         : envThinkingTokens,
+    defaultWorkingDirectory:
+      options.defaultCwd !== undefined ? options.defaultCwd : defaultCwdEnv,
+    autobaCwdPrefixes:
+      cliAutobaPrefixes !== undefined
+        ? cliAutobaPrefixes
+        : envAutobaPrefixes,
   };
 }

@@ -105,6 +105,7 @@ describe("Chat Handler - Permission Mode Tests", () => {
       var: {
         config: {
           cliPath: "/path/to/claude-cli",
+          defaultWorkingDirectory: undefined,
         },
       },
     } as any;
@@ -326,6 +327,104 @@ describe("Chat Handler - Permission Mode Tests", () => {
         pathToClaudeCodeExecutable: "/path/to/claude-cli",
       });
       expect(queryCall.options.abortController).toBeInstanceOf(AbortController);
+    });
+  });
+
+  describe("Working directory handling", () => {
+    beforeEach(() => {
+      mockContext.var.config.defaultWorkingDirectory = undefined;
+    });
+
+    it("should use request workingDirectory even if default exists", async () => {
+      mockContext.var.config.defaultWorkingDirectory = "/server/default";
+
+      const chatRequest: ChatRequest = {
+        message: "Use request cwd",
+        requestId: "cwd-request",
+        workingDirectory: "/request/path",
+      };
+
+      mockContext.req.json = vi.fn().mockResolvedValue(chatRequest);
+
+      mockQuery.mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          yield {
+            type: "assistant",
+            message: { content: [{ type: "text", text: "Response" }] },
+            session_id: "test-session",
+            parent_tool_use_id: null,
+          } as any;
+        },
+        interrupt: vi.fn(),
+        next: vi.fn(),
+        return: vi.fn(),
+        throw: vi.fn(),
+      } as any);
+
+      await handleChatRequest(mockContext, requestAbortControllers);
+
+      const queryCall = getLatestQueryCall();
+      expect(queryCall.options.cwd).toBe("/request/path");
+    });
+
+    it("should fall back to default workingDirectory when request omits it", async () => {
+      mockContext.var.config.defaultWorkingDirectory = "/server/default";
+
+      const chatRequest: ChatRequest = {
+        message: "Use default cwd",
+        requestId: "cwd-default",
+      };
+
+      mockContext.req.json = vi.fn().mockResolvedValue(chatRequest);
+
+      mockQuery.mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          yield {
+            type: "assistant",
+            message: { content: [{ type: "text", text: "Response" }] },
+            session_id: "test-session",
+            parent_tool_use_id: null,
+          } as any;
+        },
+        interrupt: vi.fn(),
+        next: vi.fn(),
+        return: vi.fn(),
+        throw: vi.fn(),
+      } as any);
+
+      await handleChatRequest(mockContext, requestAbortControllers);
+
+      const queryCall = getLatestQueryCall();
+      expect(queryCall.options.cwd).toBe("/server/default");
+    });
+
+    it("should omit cwd when neither request nor default is provided", async () => {
+      const chatRequest: ChatRequest = {
+        message: "No cwd",
+        requestId: "cwd-none",
+      };
+
+      mockContext.req.json = vi.fn().mockResolvedValue(chatRequest);
+
+      mockQuery.mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          yield {
+            type: "assistant",
+            message: { content: [{ type: "text", text: "Response" }] },
+            session_id: "test-session",
+            parent_tool_use_id: null,
+          } as any;
+        },
+        interrupt: vi.fn(),
+        next: vi.fn(),
+        return: vi.fn(),
+        throw: vi.fn(),
+      } as any);
+
+      await handleChatRequest(mockContext, requestAbortControllers);
+
+      const queryCall = getLatestQueryCall();
+      expect(queryCall.options).not.toHaveProperty("cwd");
     });
   });
 

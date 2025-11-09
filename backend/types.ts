@@ -10,5 +10,7 @@ export interface AppConfig {
   runtime: Runtime;
   cliPath: string; // Path to actual CLI script detected by validateClaudeCli
   maxThinkingTokens?: number;
+  defaultWorkingDirectory?: string;
+  autobaCwdPrefixes?: string[];
   // Future configuration options can be added here
 }
