@@ -132,7 +132,7 @@ async function startDevServer(args, schedulerChild) {
         predevChild.on('error', reject);
     });
 
-    const child = spawn('npx', ['tsx', 'watch', 'cli/node.ts', '--debug', '--max-thinking-tokens', args.maxThinkingTokens || '2048', '--default-cwd', args.defaultCwd || '/Users/xiaoyu/Desktop/next-aotuba/data/workspaces/lxy3', '--autoba-cwd-prefix', args.autobaCwdPrefix || '/Users/xiaoyu/Desktop/next-aotuba/data', ...args.otherArgs], {
+    const child = spawn('npx', ['tsx', 'watch', 'cli/node.ts', '--debug', '--max-thinking-tokens', args.maxThinkingTokens || '2048', '--default-cwd', args.defaultCwd || '/Users/xxx/next-aotuba/data/workspaces/xxx', '--autoba-cwd-prefix', args.autobaCwdPrefix || '/Users/xxx/next-aotuba/data', ...args.otherArgs], {
         stdio: 'inherit',
         shell: true
     });
@@ -200,8 +200,8 @@ async function main() {
     // 显示配置信息
     console.log('📋 启动配置:');
     console.log(`   🧠 最大思考令牌数: ${args.maxThinkingTokens || '2048'}`);
-    console.log(`   📁 默认工作目录: ${args.defaultCwd || '/Users/xiaoyu/Desktop/next-aotuba/data/workspaces/lxy3'}`);
-    console.log(`   📂 AutoBA 前缀: ${args.autobaCwdPrefix || '/Users/xiaoyu/Desktop/next-aotuba/data'}`);
+    console.log(`   📁 默认工作目录: ${args.defaultCwd || '/Users/xxx/next-aotuba/data/workspaces/xxx'}`);
+    console.log(`   📂 AutoBA 前缀: ${args.autobaCwdPrefix || '/Users/xxx/next-aotuba/data'}`);
 
     // 自动更新 TRP Sync 配置
     if (args.autobaCwdPrefix) {

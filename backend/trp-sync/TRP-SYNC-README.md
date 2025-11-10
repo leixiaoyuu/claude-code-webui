@@ -19,7 +19,7 @@ npm run trp-sync:init
 
 ### 2. 一键启动（推荐）
 ```bash
-npm run dev:trp -- --max-thinking-tokens 2048 --default-cwd /Users/xiaoyu/Desktop/next-aotuba/data/workspaces/lxy3 --autoba-cwd-prefix /Users/xiaoyu/Desktop/next-aotuba/data
+npm run dev:trp -- --max-thinking-tokens 2048 --default-cwd /Users/xxx/next-aotuba/data/workspaces/xxx --autoba-cwd-prefix /Users/xxx/next-aotuba/data
 ```
 
 **这个命令会同时**：
