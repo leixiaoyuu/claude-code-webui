@@ -97,6 +97,7 @@ async function* executeClaudeCommand(
   allowedTools?: string[],
   workingDirectory?: string,
   permissionMode?: PermissionMode,
+  allowedLoadMcpServers?: string[],
   permissionManager?: PermissionRequestManager,
   sendStreamResponse?: (chunk: StreamResponse) => void,
 ): AsyncGenerator<StreamResponse> {
@@ -165,6 +166,14 @@ async function* executeClaudeCommand(
 
     const promptStream = createStreamingPrompt(processedMessage);
 
+    const extraArgs: Record<string, string | null> = {};
+    if (allowedLoadMcpServers?.length) {
+      extraArgs.settings = JSON.stringify({
+        enabledMcpjsonServers: allowedLoadMcpServers,
+        enableAllProjectMcpServers: false,
+      });
+    }
+
     for await (const sdkMessage of query({
       prompt: promptStream,
       options: {
@@ -182,6 +191,7 @@ async function* executeClaudeCommand(
           ? { maxThinkingTokens }
           : {}),
         ...(canUseTool ? { canUseTool } : {}),
+        ...(Object.keys(extraArgs).length ? { extraArgs } : {}),
       },
     })) {
       // Debug logging of raw SDK messages with detailed content
@@ -311,6 +321,7 @@ export async function handleChatRequest(
           chatRequest.allowedTools,
           resolvedWorkingDirectory,
           chatRequest.permissionMode,
+          config.allowedLoadMcpServers,
           permissionRequestManager,
           sendChunk,
         )) {

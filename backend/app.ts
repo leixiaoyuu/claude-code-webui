@@ -33,6 +33,7 @@ export interface AppConfig {
   maxThinkingTokens?: number;
   defaultWorkingDirectory?: string;
   autobaCwdPrefixes?: string[];
+  allowedLoadMcpServers?: string[];
 }
 
 export function createApp(

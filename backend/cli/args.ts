@@ -16,6 +16,7 @@ export interface ParsedArgs {
   maxThinkingTokens?: number;
   defaultWorkingDirectory?: string;
   autobaCwdPrefixes?: string[];
+  allowedLoadMcpServers?: string[];
 }
 
 function parsePositiveInteger(value: string, label: string): number {
@@ -73,6 +74,17 @@ function parseAutobaPrefixEnv(value?: string): string[] | undefined {
   return fallback.length > 0 ? fallback : undefined;
 }
 
+function collectStringList(value: string, previous?: string[]): string[] {
+  const values = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  if (values.length === 0) {
+    return previous ?? [];
+  }
+  return previous ? [...previous, ...values] : values;
+}
+
 export function parseCliArgs(): ParsedArgs {
   // Use version from auto-generated version.ts file
   const version = VERSION;
@@ -120,6 +132,11 @@ export function parseCliArgs(): ParsedArgs {
       "--autoba-cwd-prefix <path>",
       "AutoBA project working directory prefix (repeatable)",
       collectAutobaPrefixes,
+    )
+    .option(
+      "--allowed-load-mcp-servers <names...>",
+      "MCP server names allowed to load (comma or space separated)",
+      collectStringList,
     );
 
   // Parse arguments - Commander.js v14 handles this automatically
@@ -129,6 +146,7 @@ export function parseCliArgs(): ParsedArgs {
       maxThinkingTokens?: number;
       defaultCwd?: string;
       autobaCwdPrefix?: string[];
+      allowedLoadMcpServers?: string[];
     }
   >();
 
@@ -163,5 +181,9 @@ export function parseCliArgs(): ParsedArgs {
       cliAutobaPrefixes !== undefined
         ? cliAutobaPrefixes
         : envAutobaPrefixes,
+    allowedLoadMcpServers:
+      options.allowedLoadMcpServers?.length
+        ? options.allowedLoadMcpServers
+        : undefined,
   };
 }
