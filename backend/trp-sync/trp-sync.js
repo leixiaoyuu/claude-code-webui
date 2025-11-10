@@ -71,7 +71,7 @@ class TrpSyncManager {
         this.base_url = base_url.replace(/\/$/, '');
         this.workspace_sn = workspace_sn;
         this.version_iid = version_iid;
-        this.token = options.token || 'sunline';
+        this.token = options.token;
         this.concurrency = options.concurrency || 10;
         this.use_order_prefix = options.use_order_prefix || false;
         this.incremental = options.incremental || false;

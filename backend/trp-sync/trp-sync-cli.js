@@ -19,7 +19,7 @@ const DEFAULT_CONFIG = {
     baseUrl: '',
     workspaceSn: '',
     versionIid: '',
-    token: 'sunline',
+    token: 'key值',
     targetFolder: './trp-docs',
     concurrency: 10,
     useOrderPrefix: false,
@@ -67,7 +67,7 @@ program
     .option('--base-url <url>', 'TRP API 基础地址')
     .option('--workspace-sn <sn>', '工作空间编号')
     .option('--version-iid <iid>', '版本实例ID')
-    .option('--token <token>', 'API 访问令牌', 'sunline')
+    .option('--token <token>', 'API 访问令牌')
     .option('--target-folder <folder>', '本地目标文件夹路径')
     .option('--concurrency <num>', '并发下载数量', '10')
     .option('--use-order-prefix', '使用序号前缀')
