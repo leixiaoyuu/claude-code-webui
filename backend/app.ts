@@ -18,6 +18,10 @@ import { handleConversationRequest } from "./handlers/conversations.ts";
 import { handleChatRequest } from "./handlers/chat.ts";
 import { handleAbortRequest } from "./handlers/abort.ts";
 import { handlePermissionDecisionRequest } from "./handlers/permissions.ts";
+import {
+  handleGetAutobaDocumentRequest,
+  handlePutAutobaDocumentRequest,
+} from "./handlers/autoba-documents.ts";
 import { logger } from "./utils/logger.ts";
 import { readBinaryFile } from "./utils/fs.ts";
 import { PermissionRequestManager } from "./permissions/manager.ts";
@@ -86,6 +90,11 @@ export function createApp(
   app.post("/api/permissions/:permissionRequestId", (c) =>
     handlePermissionDecisionRequest(c, permissionRequestManager),
   );
+
+  app.get("/api/autoba/documents", (c) => handleGetAutobaDocumentRequest(c));
+  app.put("/api/autoba/documents", (c) => handlePutAutobaDocumentRequest(c));
+  app.get("/api/documents/content", (c) => handleGetAutobaDocumentRequest(c));
+  app.put("/api/documents/content", (c) => handlePutAutobaDocumentRequest(c));
 
   // Static file serving with SPA fallback
   // Serve static assets (CSS, JS, images, etc.)

@@ -19,6 +19,7 @@ export interface FileStats {
   isSymlink: boolean;
   size: number;
   mtime: Date | null;
+  birthtime: Date | null;
 }
 
 /**
@@ -83,6 +84,7 @@ export async function stat(path: string): Promise<FileStats> {
     isSymlink: stats.isSymbolicLink(),
     size: stats.size,
     mtime: stats.mtime,
+    birthtime: stats.birthtime,
   };
 }
 

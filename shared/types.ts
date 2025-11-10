@@ -91,6 +91,8 @@ export interface ProjectInfo {
   path: string;
   encodedName: string;
   title?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ProjectsResponse {
