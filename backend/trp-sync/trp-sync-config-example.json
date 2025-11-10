@@ -1,0 +1,18 @@
+{
+  "baseUrl": "TRP请求URL",
+  "workspaceSn": "TRP指定空间ID",
+  "versionIid": "TRP指定空间ID下的版本ID",
+  "token": "token取只",
+  "targetFolder": "不用配置：使用启动命令参数 --autoba-cwd-prefix +/knowledge-base/trp-docs",
+  "concurrency": 10,
+  "useOrderPrefix": false,
+  "incremental": true,
+  "fromTime": null,
+  "verbose": false,
+  "scheduler": {
+    "enabled": true,
+    "cronPattern": null,
+    "intervalMinutes": 1,
+    "runImmediately": true
+  }
+}

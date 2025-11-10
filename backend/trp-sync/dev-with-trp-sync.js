@@ -95,19 +95,9 @@ function startTrpScheduler() {
     console.log('⏰ 启动 TRP 定时同步任务...');
 
     const schedulerChild = spawn('npm', ['run', 'trp-sync:scheduler'], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        shell: true
-    });
-
-    let schedulerOutput = '';
-
-    schedulerChild.stdout.on('data', (data) => {
-        const output = data.toString();
-        schedulerOutput += output;
-        // 只显示重要信息，避免刷屏
-        if (output.includes('启动') || output.includes('同步') || output.includes('完成') || output.includes('错误')) {
-            console.log(`[TRP Sync] ${output.trim()}`);
-        }
+        stdio: ['ignore', 'ignore', 'pipe'],
+        shell: true,
+        detached: false  // 确保子进程与父进程在同一个进程组
     });
 
     schedulerChild.stderr.on('data', (data) => {
@@ -115,7 +105,9 @@ function startTrpScheduler() {
     });
 
     schedulerChild.on('close', (code) => {
-        console.log(`TRP 定时同步任务已退出，代码: ${code}`);
+        if (code !== 0) {
+            console.error(`TRP 定时同步任务异常退出，代码: ${code}`);
+        }
     });
 
     schedulerChild.on('error', (error) => {
@@ -126,10 +118,21 @@ function startTrpScheduler() {
 }
 
 // 启动开发服务器
-function startDevServer(args, schedulerChild) {
+async function startDevServer(args, schedulerChild) {
     console.log('🚀 启动 Claude Code WebUI 开发服务器...');
 
-    const child = spawn('npm', ['run', 'dev', '--debug', '--max-thinking-tokens', args.maxThinkingTokens || '2048', '--default-cwd', args.defaultCwd || '/Users/xiaoyu/Desktop/next-aotuba/data/workspaces/lxy3', '--autoba-cwd-prefix', args.autobaCwdPrefix || '/Users/xiaoyu/Desktop/next-aotuba/data', ...args.otherArgs], {
+    // 运行 predev 脚本生成版本文件
+    const { spawn } = await import('child_process');
+    await new Promise((resolve, reject) => {
+        const predevChild = spawn('node', ['scripts/generate-version.js'], {
+            stdio: 'inherit',
+            shell: true
+        });
+        predevChild.on('close', resolve);
+        predevChild.on('error', reject);
+    });
+
+    const child = spawn('npx', ['tsx', 'watch', 'cli/node.ts', '--debug', '--max-thinking-tokens', args.maxThinkingTokens || '2048', '--default-cwd', args.defaultCwd || '/Users/xiaoyu/Desktop/next-aotuba/data/workspaces/lxy3', '--autoba-cwd-prefix', args.autobaCwdPrefix || '/Users/xiaoyu/Desktop/next-aotuba/data', ...args.otherArgs], {
         stdio: 'inherit',
         shell: true
     });
@@ -140,17 +143,29 @@ function startDevServer(args, schedulerChild) {
 
         if (schedulerChild) {
             console.log('🛑 停止 TRP 定时同步...');
+            // 首先尝试优雅停止
             schedulerChild.kill('SIGTERM');
-            // 如果5秒后还没停止，强制杀死
+            // 如果3秒后还没停止，强制杀死
             setTimeout(() => {
                 if (schedulerChild && !schedulerChild.killed) {
+                    console.log('⚡ 强制停止 TRP 定时同步...');
                     schedulerChild.kill('SIGKILL');
                 }
-            }, 5000);
+            }, 3000);
         }
 
         console.log('🛑 停止开发服务器...');
-        child.kill('SIGINT');
+        child.kill('SIGTERM');
+
+        // 额外保险：直接调用 npm stop 命令
+        setTimeout(() => {
+            const { spawn } = require('child_process');
+            spawn('npm', ['run', 'trp-sync:stop'], {
+                stdio: 'ignore',
+                shell: true,
+                detached: true
+            });
+        }, 1000);
     };
 
     process.on('SIGINT', cleanup);
@@ -212,7 +227,7 @@ async function main() {
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     // 启动开发服务器
-    startDevServer(args, schedulerChild);
+    await startDevServer(args, schedulerChild);
 }
 
 // 运行主函数
