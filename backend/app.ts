@@ -18,6 +18,11 @@ import { handleConversationRequest } from "./handlers/conversations.ts";
 import { handleChatRequest } from "./handlers/chat.ts";
 import { handleAbortRequest } from "./handlers/abort.ts";
 import { handlePermissionDecisionRequest } from "./handlers/permissions.ts";
+import {
+  handleCreateSyncTask,
+  handleGetSyncTaskStatus,
+  handleGetAllSyncTasks,
+} from "./handlers/trp-sync.ts";
 import { logger } from "./utils/logger.ts";
 import { readBinaryFile } from "./utils/fs.ts";
 import { PermissionRequestManager } from "./permissions/manager.ts";
@@ -86,6 +91,11 @@ export function createApp(
   app.post("/api/permissions/:permissionRequestId", (c) =>
     handlePermissionDecisionRequest(c, permissionRequestManager),
   );
+
+  // TRP Sync API routes
+  app.post("/api/trp-sync/sync", (c) => handleCreateSyncTask(c));
+  app.get("/api/trp-sync/tasks", (c) => handleGetAllSyncTasks(c));
+  app.get("/api/trp-sync/tasks/:taskId", (c) => handleGetSyncTaskStatus(c));
 
   // Static file serving with SPA fallback
   // Serve static assets (CSS, JS, images, etc.)
