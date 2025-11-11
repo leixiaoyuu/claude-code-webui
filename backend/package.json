@@ -51,16 +51,28 @@
     "format:check": "prettier --check \"**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "prepack": "node scripts/prepack.js",
-    "prepublishOnly": "npm run build && npm run test"
+    "prepublishOnly": "npm run build && npm run test",
+    "trp-sync": "node trp-sync/trp-sync-cli.js",
+    "trp-sync:init": "node trp-sync/trp-sync-cli.js init --interactive",
+    "trp-sync:sync": "node trp-sync/trp-sync-cli.js sync",
+    "trp-sync:scheduler": "node trp-sync/trp-sync-cli.js start-scheduler",
+    "trp-sync:stop": "pkill -f 'trp-sync-cli.js' || echo '没有运行的进程'",
+    "trp-sync:status": "ps aux | grep trp-sync-cli.js | grep -v grep || echo '没有运行的进程'",
+    "dev:trp": "node trp-sync/dev-with-trp-sync.js"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.30",
     "@hono/node-server": "^1.0.0",
     "@logtape/logtape": "^1.0.0",
     "@logtape/pretty": "^1.0.0",
+    "axios": "^1.6.0",
     "commander": "^14.0.0",
     "hono": "^4.8.5",
-    "markdown-it": "^14.1.0"
+    "markdown-it": "^14.1.0",
+    "glob": "^10.3.0",
+    "node-cron": "^3.0.3",
+    "p-queue": "^8.0.0",
+    "winston": "^3.11.0"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

@@ -22,6 +22,11 @@ import {
   handleGetAutobaDocumentRequest,
   handlePutAutobaDocumentRequest,
 } from "./handlers/autoba-documents.ts";
+import {
+  handleCreateSyncTask,
+  handleGetSyncTaskStatus,
+  handleGetAllSyncTasks,
+} from "./handlers/trp-sync.ts";
 import { logger } from "./utils/logger.ts";
 import { readBinaryFile } from "./utils/fs.ts";
 import { PermissionRequestManager } from "./permissions/manager.ts";
@@ -96,6 +101,11 @@ export function createApp(
   app.put("/api/autoba/documents", (c) => handlePutAutobaDocumentRequest(c));
   app.get("/api/documents/content", (c) => handleGetAutobaDocumentRequest(c));
   app.put("/api/documents/content", (c) => handlePutAutobaDocumentRequest(c));
+
+  // TRP Sync API routes
+  app.post("/api/trp-sync/sync", (c) => handleCreateSyncTask(c));
+  app.get("/api/trp-sync/tasks", (c) => handleGetAllSyncTasks(c));
+  app.get("/api/trp-sync/tasks/:taskId", (c) => handleGetSyncTaskStatus(c));
 
   // Static file serving with SPA fallback
   // Serve static assets (CSS, JS, images, etc.)
