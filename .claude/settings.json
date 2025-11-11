@@ -11,5 +11,20 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Bash",
+      "Grep",
+      "Glob",
+      "SlashCommand",
+      "Task",
+      "TodoWrite"
+    ],
+    "deny": [],
+    "ask": []
   }
 }

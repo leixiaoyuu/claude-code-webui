@@ -18,6 +18,7 @@ import {
   PermissionRequestManager,
   globalPermissionRequestManager,
 } from "../permissions/manager.ts";
+import { createWhitelistPermissionHandler } from "../permissions/whitelist.ts";
 import { parseBooleanQueryParam } from "../utils/query.ts";
 import {
   normalizeConfiguredPrefixes,
@@ -149,7 +150,14 @@ async function* executeClaudeCommand(
     };
   };
 
-  const canUseTool = buildPermissionHandler();
+  // 创建基础权限处理器
+  const basePermissionHandler = buildPermissionHandler();
+
+  // 使用白名单权限处理器包装基础处理器
+  const canUseTool = basePermissionHandler
+    ? createWhitelistPermissionHandler(basePermissionHandler)
+    : undefined;
+
   const effectivePermissionMode = permissionMode ?? "bypassPermissions";
 
   try {
@@ -262,13 +270,13 @@ export async function handleChatRequest(
   if (isAutoBARequest) {
     if (!trimmedUid || !trimmedAutobaSessionId) {
       return c.json({
-        error: "AutoBA 请求需要提供 uid 与 autobaSessionId",
+          error: "AutoBA 请求需要提供 uid 与 autobaSessionId",
       }, 400);
     }
 
     if (!autobaPrefixes.length) {
       return c.json({
-        error: "AutoBA 前缀未配置",
+          error: "AutoBA 前缀未配置",
       }, 400);
     }
 
