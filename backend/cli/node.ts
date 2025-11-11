@@ -43,6 +43,7 @@ async function main(runtime: NodeRuntime) {
     maxThinkingTokens: args.maxThinkingTokens,
     defaultWorkingDirectory: args.defaultWorkingDirectory,
     autobaCwdPrefixes: args.autobaCwdPrefixes,
+    allowedLoadMcpServers: args.allowedLoadMcpServers,
   });
 
   // Start server (only show this message when everything is ready)

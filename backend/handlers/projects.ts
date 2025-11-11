@@ -3,7 +3,7 @@ import type { ProjectInfo, ProjectsResponse } from "../../shared/types.ts";
 import { getEncodedProjectName } from "../history/pathUtils.ts";
 import { getProjectTitle } from "../history/projectTitle.ts";
 import { logger } from "../utils/logger.ts";
-import { readTextFile } from "../utils/fs.ts";
+import { readTextFile, readDir, stat, exists } from "../utils/fs.ts";
 import { getHomeDir } from "../utils/os.ts";
 import type { ConfigContext } from "../middleware/config.ts";
 import { parseBooleanQueryParam } from "../utils/query.ts";
@@ -59,15 +59,12 @@ export async function handleProjectsRequest(c: Context<ConfigContext>) {
             continue;
           }
 
-          const title = await getProjectTitle(
-            `${projectsRoot}/${encodedName}`,
-          );
-
-          projects.push({
+          const projectInfo = await buildProjectInfo(
             path,
             encodedName,
-            ...(title ? { title } : {}),
-          });
+            projectsRoot,
+          );
+          projects.push(projectInfo);
           seenPaths.add(path);
         }
 
@@ -86,15 +83,12 @@ export async function handleProjectsRequest(c: Context<ConfigContext>) {
               continue;
             }
 
-            const title = await getProjectTitle(
-              `${projectsRoot}/${encodedName}`,
-            );
-
-            projects.push({
+            const projectInfo = await buildProjectInfo(
               path,
               encodedName,
-              ...(title ? { title } : {}),
-            });
+              projectsRoot,
+            );
+            projects.push(projectInfo);
             seenPaths.add(path);
           }
         }
@@ -128,4 +122,95 @@ async function collectAutobaWorkspacePaths(
     results.push(...paths);
   }
   return results;
+}
+
+async function buildProjectInfo(
+  path: string,
+  encodedName: string,
+  projectsRoot: string,
+): Promise<ProjectInfo> {
+  const title = await getProjectTitle(
+    `${projectsRoot}/${encodedName}`,
+  );
+  const timeline = await getProjectTimeline(
+    `${projectsRoot}/${encodedName}`,
+  );
+  return {
+    path,
+    encodedName,
+    ...(title ? { title } : {}),
+    ...(timeline.createdAt ? { createdAt: timeline.createdAt } : {}),
+    ...(timeline.updatedAt ? { updatedAt: timeline.updatedAt } : {}),
+  };
+}
+
+async function getProjectTimeline(directory: string): Promise<
+  { createdAt?: string; updatedAt?: string }
+> {
+  try {
+    if (!await exists(directory)) {
+      return {};
+    }
+
+    const directoryStats = await stat(directory);
+    if (!directoryStats.isDirectory) {
+      return {};
+    }
+
+    let earliest: Date | null = null;
+    let latest: Date | null = null;
+    let hasFiles = false;
+
+    try {
+      for await (const entry of readDir(directory)) {
+        if (!entry.isFile) {
+          continue;
+        }
+        const filePath = `${directory}/${entry.name}`;
+        try {
+          const fileStats = await stat(filePath);
+          const candidateCreated = fileStats.birthtime ?? fileStats.mtime;
+          const candidateUpdated = fileStats.mtime ?? fileStats.birthtime;
+
+          if (candidateCreated) {
+            if (!earliest || candidateCreated < earliest) {
+              earliest = candidateCreated;
+            }
+          }
+          if (candidateUpdated) {
+            if (!latest || candidateUpdated > latest) {
+              latest = candidateUpdated;
+            }
+          }
+          hasFiles = true;
+        } catch (error) {
+          logger.api.debug("Failed to stat project file {filePath}", {
+            filePath,
+            error,
+          });
+        }
+      }
+    } catch (error) {
+      logger.api.debug("Failed to read project directory {directory}", {
+        directory,
+        error,
+      });
+    }
+
+    if (!hasFiles) {
+      earliest = directoryStats.birthtime ?? directoryStats.mtime ?? earliest;
+      latest = directoryStats.mtime ?? directoryStats.birthtime ?? latest;
+    }
+
+    return {
+      ...(earliest ? { createdAt: earliest.toISOString() } : {}),
+      ...(latest ? { updatedAt: latest.toISOString() } : {}),
+    };
+  } catch (error) {
+    logger.api.debug("Failed to compute project timeline for {directory}", {
+      directory,
+      error,
+    });
+    return {};
+  }
 }

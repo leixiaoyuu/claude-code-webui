@@ -12,5 +12,6 @@ export interface AppConfig {
   maxThinkingTokens?: number;
   defaultWorkingDirectory?: string;
   autobaCwdPrefixes?: string[];
+  allowedLoadMcpServers?: string[];
   // Future configuration options can be added here
 }

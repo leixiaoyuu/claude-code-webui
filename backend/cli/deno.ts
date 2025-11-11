@@ -38,6 +38,7 @@ async function main(runtime: DenoRuntime) {
     maxThinkingTokens: args.maxThinkingTokens,
     defaultWorkingDirectory: args.defaultWorkingDirectory,
     autobaCwdPrefixes: args.autobaCwdPrefixes,
+    allowedLoadMcpServers: args.allowedLoadMcpServers,
   });
 
   // Start server (only show this message when everything is ready)
