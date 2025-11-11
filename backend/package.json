@@ -68,9 +68,8 @@
     "axios": "^1.6.0",
     "commander": "^14.0.0",
     "hono": "^4.8.5",
-    "markdown-it": "^14.1.0"
+    "markdown-it": "^14.1.0",
     "glob": "^10.3.0",
-    "hono": "^4.8.5",
     "node-cron": "^3.0.3",
     "p-queue": "^8.0.0",
     "winston": "^3.11.0"
